@@ -3,7 +3,7 @@ const { Octokit } = require('@octokit/rest'); // GitHub API client
 
 // Setting up Octokit with authentication
 const octokit = new Octokit({
-  auth: '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', // Placeholder token, replace with a valid token
+  auth: 'ACCESS_TOKEN', // Placeholder token, replace with a valid token
 });
 
 // Repository and folder paths
