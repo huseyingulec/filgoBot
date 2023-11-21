@@ -206,7 +206,9 @@ async function main() {
 
       // Get the date of the last commit for the translated file
       const translatedFileLastCommitDate = await getLastCommitDate(owner, repo, translatedFilePath);
-      console.log(`Last commit date for ${translatedFilePath}: ${translatedFileLastCommitDate}`);
+      const originalFileLastCommitDate = await getLastCommitDate(owner, repo, originalFilePath);
+
+      console.log(`Last commit date for ${originalFilePath}: ${originalFileLastCommitDate}`);
 
       // Get the list of commits for the original file
       const { data: originalFileCommits } = await octokit.repos.listCommits({
