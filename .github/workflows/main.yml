@@ -1,0 +1,32 @@
+name: Run bot
+
+on:
+  schedule:
+    - cron: '0 */12 * * *' # This will run the workflow every 12 hours
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Use Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '18.17.0' # Specify the Node.js version
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run bot
+      run: node bot.js
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
+        OWNER: 'filgoBot' # Owner of the translated repository
+        REPO: 'bot-test' # Name of the translated repository
+        BRANCH: 'main' # Name of the branch to compare with
+        ORIGINAL_OWNER: 'TheOdinProject' # Owner of the original repository
+        ORIGINAL_REPO: 'curriculum' # Name of the original repository
+        ORIGINAL_BRANCH: 'main' # Name of the branch to compare with
