@@ -134,8 +134,10 @@ async function getCommitMessages(owner, repo, newCommits) {
     ref: commit.sha,
   })));
 
+  const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+
   // Create a list of commit messages
-  return commitDetails.map(({ data }) => `- ${data.commit.message} (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`).join('\n');
+  return commitDetails.map(({ data }) => `- [${data.commit.message}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`).join('\n');
 }
 
 
