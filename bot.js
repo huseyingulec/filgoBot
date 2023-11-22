@@ -206,9 +206,7 @@ async function main() {
 
       // Get the date of the last commit for the translated file
       const translatedFileLastCommitDate = await getLastCommitDate(owner, repo, translatedFilePath);
-      const originalFileLastCommitDate = await getLastCommitDate(owner, repo, originalFilePath);
-
-      console.log(`Last commit date for ${originalFilePath}: ${originalFileLastCommitDate}`);
+      const originalFileLastCommitDate = await getLastCommitDate(originalOwner, originalRepo, originalFilePath);
 
       // Get the list of commits for the original file
       const { data: originalFileCommits } = await octokit.repos.listCommits({
@@ -222,6 +220,10 @@ async function main() {
     
       // If there are new commits
     if (newCommits.length > 0) {
+      
+      // Log the date of the last commit for the translated file 
+      console.log(`Last commit date for ${translatedFilePath}: ${originalFileLastCommitDate}`);
+
       console.log(`-Found ${newCommits.length} new commits for ${file}`);
 
       // Create an issue
