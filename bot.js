@@ -204,7 +204,7 @@ async function createNewIssue(
       owner,
       repo,
       title: `Translation Update Needed on \`${file}\``,
-      body: `The Turkish translation for [${file}](${originalFileUrl}) is out of sync. Please update with the latest changes. Checkout turkish file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
+      body: `The translation for [${file}](${originalFileUrl}) is out of sync. Please update with the latest changes. Checkout translated file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
       labels: ["curriculum-update"],
     });
 
