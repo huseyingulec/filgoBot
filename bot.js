@@ -36,7 +36,7 @@ async function getFilesList(owner, repo, branch) {
       .map((item) => item.path);
 
     console.log(
-      `Found ${files.length} files in the ${owner}/${repo} repository.`
+      `Found ${files.length} files in the ${owner}/${repo} repository.`,
     ); // Log the number of files found
   } catch (error) {
     console.error(`Error fetching files: ${error.message}`);
@@ -70,7 +70,7 @@ async function getLastCommitDate(owner, repo, path) {
     }
   } catch (error) {
     console.error(
-      `Error fetching commits for file ${path} in the ${owner}/${repo} repository: ${error.message}`
+      `Error fetching commits for file ${path} in the ${owner}/${repo} repository: ${error.message}`,
     );
   }
   return date;
@@ -81,7 +81,7 @@ async function createIssue(
   originalFilePath,
   translatedFilePath,
   file,
-  newCommits
+  newCommits,
 ) {
   try {
     const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/main/${originalFilePath}`;
@@ -92,7 +92,7 @@ async function createIssue(
       console.log(`--Issue already exists for file ${file}`);
       const newCommitsToComment = await filterNewCommits(
         existingIssue,
-        newCommits
+        newCommits,
       );
 
       if (newCommitsToComment.length === 0) {
@@ -103,20 +103,20 @@ async function createIssue(
       const commitMessages = await getCommitMessages(
         originalOwner,
         originalRepo,
-        newCommitsToComment
+        newCommitsToComment,
       );
       await addCommentToIssue(existingIssue, commitMessages, file);
     } else {
       const commitMessages = await getCommitMessages(
         originalOwner,
         originalRepo,
-        newCommits
+        newCommits,
       );
       await createNewIssue(
         file,
         originalFileUrl,
         translatedFileUrl,
-        commitMessages
+        commitMessages,
       );
     }
   } catch (error) {
@@ -148,8 +148,8 @@ async function filterNewCommits(existingIssue, newCommits) {
   return newCommits.filter(
     (commit) =>
       ![existingIssue.body, ...comments.map((comment) => comment.body)].some(
-        (text) => text.includes(commit.sha)
-      )
+        (text) => text.includes(commit.sha),
+      ),
   );
 }
 
@@ -161,8 +161,8 @@ async function getCommitMessages(owner, repo, newCommits) {
         owner,
         repo,
         ref: commit.sha,
-      })
-    )
+      }),
+    ),
   );
 
   const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
@@ -171,7 +171,7 @@ async function getCommitMessages(owner, repo, newCommits) {
   return commitDetails
     .map(
       ({ data }) =>
-        `- [${data.commit.message}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`
+        `- [${data.commit.message}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`,
     )
     .join("\n");
 }
@@ -197,7 +197,7 @@ async function createNewIssue(
   file,
   originalFileUrl,
   translatedFileUrl,
-  commitMessages
+  commitMessages,
 ) {
   try {
     await octokit.issues.create({
@@ -221,7 +221,7 @@ async function main() {
     const originalFiles = await getFilesList(
       originalOwner,
       originalRepo,
-      originalBranch
+      originalBranch,
     );
     const translatedFiles = await getFilesList(owner, repo, branch);
 
@@ -234,7 +234,7 @@ async function main() {
 
     // Find the common markdown files
     const commonFiles = translatedFileNames.filter(
-      (file) => originalFilesMap.hasOwnProperty(file) && file.endsWith(".md")
+      (file) => originalFilesMap.hasOwnProperty(file) && file.endsWith(".md"),
     );
     console.log(`Found ${commonFiles.length} common markdown files.`); // Log the number of common files
 
@@ -253,12 +253,12 @@ async function main() {
       const translatedFileLastCommitDate = await getLastCommitDate(
         owner,
         repo,
-        translatedFilePath
+        translatedFilePath,
       );
       const originalFileLastCommitDate = await getLastCommitDate(
         originalOwner,
         originalRepo,
-        originalFilePath
+        originalFilePath,
       );
 
       // Get the list of commits for the original file
@@ -272,14 +272,14 @@ async function main() {
       const newCommits = originalFileCommits.filter(
         (commit) =>
           new Date(commit.commit.committer.date) >
-          new Date(translatedFileLastCommitDate)
+          new Date(translatedFileLastCommitDate),
       );
 
       // If there are new commits
       if (newCommits.length > 0) {
         // Log the date of the last commit for the translated file
         console.log(
-          `Last commit date for ${translatedFilePath}: ${originalFileLastCommitDate}`
+          `Last commit date for ${translatedFilePath}: ${originalFileLastCommitDate}`,
         );
 
         console.log(`-Found ${newCommits.length} new commits for ${file}`);
@@ -290,11 +290,11 @@ async function main() {
             originalFilePath,
             translatedFilePath,
             file,
-            newCommits
+            newCommits,
           );
         } catch (error) {
           console.error(
-            `--Error creating issue for file ${file}: ${error.message}`
+            `--Error creating issue for file ${file}: ${error.message}`,
           );
         }
       } else {
