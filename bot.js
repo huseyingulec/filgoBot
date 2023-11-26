@@ -10,6 +10,9 @@ const octokit = new Octokit({
   auth: process.env.ACCESS_TOKEN, // Placeholder token, replace with a valid token
 });
 
+// Files to ignore
+const filesToIgnore = [process.env.IGNORE_FILES]; // Comma separated list of files to ignore
+
 // Repository and folder paths
 const owner = process.env.OWNER; // Owner of the translated repository
 const repo = process.env.REPO; // Name of the translated repository
@@ -50,7 +53,9 @@ async function getFilesList(owner, repo, branch) {
 function createFilesMap(files) {
   return files.reduce((map, file) => {
     const fileName = file.split("/").pop().toLowerCase();
-    map[fileName] = file;
+    if (!IGNORE_FILES.includes(fileName)) {
+        map[fileName] = file;
+    }
     return map;
   }, {});
 }
