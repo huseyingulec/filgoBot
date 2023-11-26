@@ -91,6 +91,8 @@ You will need to create a personal access token with the following permissions:
 - ``read:discussion``: This is needed to fetch the list of issues and comments.
 - ``write:discussion``: This is needed to create comments on existing issues.
 
+``filesToIgnore``: Files to ignore while comparing the files in the two repositories. For example, if you want to ignore the README.md file, add README.md to the list. You can add multiple files to the list.
+
 ``owner``: GitHub repository 1 owner github username.
 
 ``repo``: GitHub repository 1 name.

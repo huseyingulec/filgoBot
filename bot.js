@@ -11,7 +11,7 @@ const octokit = new Octokit({
 });
 
 // Files to ignore
-const filesToIgnore = process.env.IGNORE_FILES; // Comma separated list of files to ignore
+const filesToIgnore = process.env.IGNORE_FILES.split(','); // Comma separated list of files to ignore
 
 // Repository and folder paths
 const owner = process.env.OWNER; // Owner of the translated repository
