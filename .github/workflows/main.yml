@@ -24,6 +24,7 @@ jobs:
       run: node bot.js
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
+        IGNORE_FILES: 'readme.md', 'license.md' # Files to ignore when translating
         OWNER: 'filgoBot' # Owner of the translated repository
         REPO: 'bot-test' # Name of the translated repository
         BRANCH: 'main' # Name of the branch to compare with
