@@ -30,7 +30,7 @@ If the SHA numbers differ, a comment is added to the existing issue, notifying u
 
 ## Usage
 
-### Running the code automatically with gitHub actions workflow 
+### Running the bot automatically with gitHub actions workflow 
 
 Fork this repository
 
@@ -51,6 +51,8 @@ Name the secret ACCESS_TOKEN and paste the personal access token as the value.
 Modify the Configuration in the Workflow File:
 
 Open the .github/workflows/main.yml file in your repository. Change the following constants to match your repository and requirements:
+
+``filesToIgnore``: Files to ignore while comparing the files in the two repositories. For example, if you want to ignore the README.md file, add README.md to the list. You can add multiple files to the list.
 
 ``owner``: GitHub repository 1 owner github username.
 
