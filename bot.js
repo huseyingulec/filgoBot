@@ -11,7 +11,7 @@ const octokit = new Octokit({
 });
 
 // Files to ignore
-const filesToIgnore = process.env.IGNORE_FILES.split(','); // Comma separated list of files to ignore
+const filesToIgnore = process.env.IGNORE_FILES.split(","); // Comma separated list of files to ignore
 
 // Repository and folder paths
 const owner = process.env.OWNER; // Owner of the translated repository
@@ -171,14 +171,15 @@ async function getCommitMessages(owner, repo, newCommits) {
         )
     );
 
-    const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
-
     // Create a list of commit messages
     return commitDetails
-        .map(
-            ({ data }) =>
-                `- [${data.commit.message}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`
-        )
+        .map(({ data }) => {
+            const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+
+            const firstLineMessage = data.commit.message.split("\n")[0];
+
+            return `- [${firstLineMessage}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`;
+        })
         .join("\n");
 }
 
