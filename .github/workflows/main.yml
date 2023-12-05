@@ -25,8 +25,8 @@ jobs:
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
         IGNORE_FILES: 'readme.md,license.md' # List of files to ignore
-        OWNER: 'filgoBot' # Owner of the translated repository
-        REPO: 'bot-test' # Name of the translated repository
+        OWNER: 'kamp-us' # Owner of the translated repository
+        REPO: 'turkce-odin-project' # Name of the translated repository
         BRANCH: 'main' # Name of the branch to compare with
         ORIGINAL_OWNER: 'TheOdinProject' # Owner of the original repository
         ORIGINAL_REPO: 'curriculum' # Name of the original repository
