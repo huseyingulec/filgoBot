@@ -210,7 +210,7 @@ async function createNewIssue(
         await octokit.issues.create({
             owner,
             repo,
-            title: `Translation Update Needed on \`${file}\``,
+            title: `Translation update needed on \`${file}\``,
             body: `The translation for [${file}](${originalFileUrl}) is out of sync. Please update with the latest changes. Checkout translated file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
             labels: ["curriculum-update"],
         });
