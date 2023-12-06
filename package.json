@@ -1,16 +1,21 @@
 {
-  "name": "filgobot",
-  "version": "1.0.0",
-  "description": "",
-  "main": "bot.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@octokit/rest": "^20.0.2",
-    "deers": "^0.2.2"
-  }
+    "name": "filgobot",
+    "version": "1.0.0",
+    "description": "A bot that automates the synchronization of two GitHub repositories by identifying common Markdown files, analyzing their commit histories, and managing the creation of GitHub issues for updates.",
+    "main": "bot.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "bot",
+        "automation",
+        "synchronization",
+        "github-actions"
+    ],
+    "author": "huseyingulec <info@gulechuseyin.com>",
+    "license": "MIT",
+    "dependencies": {
+        "@octokit/rest": "^20.0.2",
+        "deers": "^0.2.2"
+    }
 }
