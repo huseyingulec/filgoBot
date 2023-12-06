@@ -18,7 +18,7 @@ A filtering mechanism is applied to obtain commits from the original file that o
 
 If no issues are found, a new issue is automatically opened to highlight the need for updates as shown below.
 
-![](images/filgo-issue.png)
+![](https://github.com/huseyingulec/filgoBot/assets/107408663/53fd5b7e-03c5-4a9f-b8d7-ed30727fd87b)
 
 If an issue already exists, the tool compares the SHA number of the commit in the existing issue with the latest received commit.
 
@@ -26,7 +26,7 @@ If the SHA numbers match, no action is taken as the issue is already up-to-date.
 
 If the SHA numbers differ, a comment is added to the existing issue, notifying users of the new commit as shown below.
 
-![](images/filgo-comment.png)
+![](https://github.com/huseyingulec/filgoBot/assets/107408663/46e0c6bb-d6bc-46de-86a7-911a9ab74095)
 
 ## Usage
 
