@@ -176,9 +176,25 @@ async function getCommitMessages(owner, repo, newCommits) {
         .map(({ data }) => {
             const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
 
+            let commitDate = new Date(data.commit.committer.date);
+            let options = {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+                timeZone: "UTC",
+                timeZoneName: "short",
+            };
+            let formattedDate = commitDate
+                .toLocaleString("en-US", options)
+                .replace(",", "")
+                .replace(" GMT", "");
+
             const firstLineMessage = data.commit.message.split("\n")[0];
 
-            return `- [${firstLineMessage}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) <!-- SHA: ${data.sha} -->`;
+            return `- [${firstLineMessage}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
         })
         .join("\n");
 }
@@ -190,7 +206,7 @@ async function addCommentToIssue(existingIssue, commitMessages, file) {
             owner,
             repo,
             issue_number: existingIssue.number,
-            body: `New commits have been made to the original file. Please update the translation.\n\n Latest commits:\n${commitMessages}`,
+            body: `New commits have been made to the Odin's file. Please update the Kampus's file.\n\n Latest commits:\n${commitMessages}`,
         });
 
         console.log(`---Comment added to issue for ${file}`);
@@ -211,7 +227,7 @@ async function createNewIssue(
             owner,
             repo,
             title: `Translation update needed on \`${file}\``,
-            body: `The translation for [${file}](${originalFileUrl}) is out of sync. Please update with the latest changes. Checkout translated file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
+            body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus's file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
             labels: ["curriculum-update"],
         });
 
@@ -288,7 +304,7 @@ async function main() {
             if (newCommits.length > 0) {
                 // Log the date of the last commit for the translated file
                 console.log(
-                    `Last commit date for ${translatedFilePath}: ${originalFileLastCommitDate}`
+                    `Last commit date for ${file}: ${originalFileLastCommitDate}`
                 );
 
                 console.log(
