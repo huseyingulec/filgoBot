@@ -2,6 +2,8 @@
 
 This bot facilitates the updating of two GitHub repositories by identifying common Markdown files and managing their commit histories. It streamlines the process of tracking changes between original and translated files, automating the creation of issues for updates.
 
+## Currently we are using this bot for [turkce-odin-project](https://github.com/kamp-us/turkce-odin-project/issues), check it out!
+
 ## How It Works
 
 ### Identifying Common Files:
