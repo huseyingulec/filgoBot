@@ -60,6 +60,86 @@ function createFilesMap(files) {
     }, {});
 }
 
+async function getFilesAndCreateMaps() {
+    const originalFiles = await getFilesList(
+        originalOwner,
+        originalRepo,
+        originalBranch
+    );
+    const translatedFiles = await getFilesList(owner, repo, branch);
+
+    const originalFilesMap = createFilesMap(originalFiles);
+    const translatedFilesMap = createFilesMap(translatedFiles);
+
+    return { originalFilesMap, translatedFilesMap };
+}
+
+function getCommonFiles(originalFilesMap, translatedFilesMap) {
+    const translatedFileNames = Object.keys(translatedFilesMap);
+
+    const commonFiles = translatedFileNames.filter(
+        file => originalFilesMap.hasOwnProperty(file) && file.endsWith(".md")
+    );
+
+    return commonFiles;
+}
+
+async function processCommonFiles(
+    commonFiles,
+    originalFilesMap,
+    translatedFilesMap
+) {
+    for (const file of commonFiles) {
+        const originalFilePath = originalFilesMap[file];
+        const translatedFilePath = translatedFilesMap[file];
+
+        const translatedFileLastCommitDate = await getLastCommitDate(
+            owner,
+            repo,
+            translatedFilePath
+        );
+        const originalFileLastCommitDate = await getLastCommitDate(
+            originalOwner,
+            originalRepo,
+            originalFilePath
+        );
+
+        const { data: originalFileCommits } = await octokit.repos.listCommits({
+            owner: originalOwner,
+            repo: originalRepo,
+            path: originalFilePath,
+        });
+
+        const newCommits = originalFileCommits.filter(
+            commit =>
+                new Date(commit.commit.committer.date) >
+                new Date(translatedFileLastCommitDate)
+        );
+
+        if (newCommits.length > 0) {
+            console.log(
+                `Last commit date for ${file}: ${originalFileLastCommitDate}`
+            );
+            console.log(`-Found ${newCommits.length} new commits for ${file}`);
+
+            try {
+                await createIssue(
+                    originalFilePath,
+                    translatedFilePath,
+                    file,
+                    newCommits
+                );
+            } catch (error) {
+                console.error(
+                    `--Error creating issue for file ${file}: ${error.message}`
+                );
+            }
+        } else {
+            console.log(`-No new commits found for ${file}`);
+        }
+    }
+}
+
 // Function to get the date of the last commit for a file
 async function getLastCommitDate(owner, repo, path) {
     let date;
@@ -206,7 +286,7 @@ async function addCommentToIssue(existingIssue, commitMessages, file) {
             owner,
             repo,
             issue_number: existingIssue.number,
-            body: `New commits have been made to the Odin's file. Please update the Kampus's file.\n\n Latest commits:\n${commitMessages}`,
+            body: `New commits have been made to the Odin's file. Please update the Kampus' file.\n\n Latest commits:\n${commitMessages}`,
         });
 
         console.log(`---Comment added to issue for ${file}`);
@@ -237,100 +317,30 @@ async function createNewIssue(
     }
 }
 
-// Main function to compare files and create issues
 async function main() {
     try {
-        // Get the list of files in both repositories
-        const originalFiles = await getFilesList(
-            originalOwner,
-            originalRepo,
-            originalBranch
+        const { originalFilesMap, translatedFilesMap } =
+            await getFilesAndCreateMaps();
+        const commonFiles = getCommonFiles(
+            originalFilesMap,
+            translatedFilesMap
         );
-        const translatedFiles = await getFilesList(owner, repo, branch);
 
-        // Create a map of file names to file paths
-        const originalFilesMap = createFilesMap(originalFiles);
-        const translatedFilesMap = createFilesMap(translatedFiles);
-
-        // Extract file names from file paths
-        const translatedFileNames = Object.keys(translatedFilesMap);
-
-        // Find the common markdown files
-        const commonFiles = translatedFileNames.filter(
-            file =>
-                originalFilesMap.hasOwnProperty(file) && file.endsWith(".md")
-        );
-        console.log(`Found ${commonFiles.length} common markdown files.`); // Log the number of common files
+        console.log(`Found ${commonFiles.length} common markdown files.`);
 
         if (commonFiles.length === 0) {
             console.log("No common markdown files found.");
             return;
         }
 
-        // For each common file
-        for (const file of commonFiles) {
-            // Get the full path of the original file
-            const originalFilePath = originalFilesMap[file];
-            const translatedFilePath = translatedFilesMap[file];
-
-            // Get the date of the last commit for the translated file
-            const translatedFileLastCommitDate = await getLastCommitDate(
-                owner,
-                repo,
-                translatedFilePath
-            );
-            const originalFileLastCommitDate = await getLastCommitDate(
-                originalOwner,
-                originalRepo,
-                originalFilePath
-            );
-
-            // Get the list of commits for the original file
-            const { data: originalFileCommits } =
-                await octokit.repos.listCommits({
-                    owner: originalOwner,
-                    repo: originalRepo,
-                    path: originalFilePath,
-                });
-
-            // Filter out the commits that were made before the translated file was last committed to
-            const newCommits = originalFileCommits.filter(
-                commit =>
-                    new Date(commit.commit.committer.date) >
-                    new Date(translatedFileLastCommitDate)
-            );
-
-            // If there are new commits
-            if (newCommits.length > 0) {
-                // Log the date of the last commit for the translated file
-                console.log(
-                    `Last commit date for ${file}: ${originalFileLastCommitDate}`
-                );
-
-                console.log(
-                    `-Found ${newCommits.length} new commits for ${file}`
-                );
-
-                // Create an issue
-                try {
-                    await createIssue(
-                        originalFilePath,
-                        translatedFilePath,
-                        file,
-                        newCommits
-                    );
-                } catch (error) {
-                    console.error(
-                        `--Error creating issue for file ${file}: ${error.message}`
-                    );
-                }
-            } else {
-                console.log(`-No new commits found for ${file}`);
-            }
-        }
+        await processCommonFiles(
+            commonFiles,
+            originalFilesMap,
+            translatedFilesMap
+        );
     } catch (error) {
         console.error(`-Error: ${error.message}`);
     }
 }
-// Execute the main function
+
 main().catch(error => console.error(`Unhandled error: ${error.message}`));
