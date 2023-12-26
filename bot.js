@@ -8,7 +8,7 @@ const { Octokit } = require("@octokit/rest"); // GitHub API client
 // Setting up Octokit with authentication
 const octokit = new Octokit({
     auth: process.env.ACCESS_TOKEN, // Placeholder token, replace with a valid token
-});
+ });
 
 // Files to ignore
 const filesToIgnore = process.env.IGNORE_FILES.split(","); // Comma separated list of files to ignore
@@ -275,34 +275,34 @@ async function getCommitMessages(owner, repo, newCommits, path) {
                     repo,
                     ref: commit.sha,
                 })
-            )
-        );
+        ));
 
         // Create a list of commit messages
-        const messages = await Promise.all(
-            commitDetails.flatMap(async ({ data }) => {
-                const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
-                const formattedDate = formatDate(
-                    new Date(data.commit.committer.date)
-                );
-                // Get the first line of the commit message
-                const firstLineMessage = data.commit.message.split("\n")[0];
+        return commitDetails.map(({ data }) => {
+            const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+            const formattedDate = formatDate(
+                new Date(data.commit.committer.date)
+            );
+            // Get the first line of the commit message
+            const firstLineMessage = data.commit.message.split("\n")[0];
 
-                const diff = await getCommitDiff(data, path);
+            // Get the additions and deletions for the file in the commit by passing commit data and path
+            const diff = getCommitDiff(data, path);
 
-                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
-            })
-        );
-
-        return messages.flat().join("\n");
+            return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
+            
+        })
+            .join("\n");
+        
     } catch (error) {
         console.error(`Error getting commit messages: ${error.message}`);
     }
 }
 
-async function getCommitDiff(commit, path) {
+function getCommitDiff(commit, path) {
+    // Find the file in the commit that matches the path
     const file = commit.files.find(file => file.filename === path);
-
+    // Return the additions and deletions for the specific file not the entire commit
     return {
         additions: file.additions,
         deletions: file.deletions,
