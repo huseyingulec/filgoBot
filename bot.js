@@ -152,7 +152,6 @@ async function processCommonFiles(
             console.log(`-No new commits found for ${filePath}`);
         }
     }
-    console.log(commonFiles);
 }
 
 // Function to get the date of the last commit for a file
