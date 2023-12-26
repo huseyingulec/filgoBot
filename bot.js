@@ -101,6 +101,8 @@ async function processCommonFiles(
         const originalFilePath = originalFilesMap[filePath];
         const translatedFilePath = translatedFilesMap[filePath];
 
+        const fileName = path.basename(filePath);
+
         // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
             owner,
@@ -138,7 +140,7 @@ async function processCommonFiles(
                 await createIssue(
                     originalFilePath,
                     translatedFilePath,
-                    filePath,
+                    fileName,
                     newCommits
                 );
             } catch (error) {
@@ -345,7 +347,7 @@ async function createNewIssue(
             owner,
             repo,
             title: `Translation update needed on \`${file}\``,
-            body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus's file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
+            body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus' file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
             labels: ["curriculum-update"],
         });
 
