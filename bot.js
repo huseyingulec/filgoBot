@@ -60,6 +60,7 @@ function createFilesMap(files) {
     }, {});
 }
 
+// This function fetches the list of files from both the original and translated repositories and creates maps for them.
 async function getFilesAndCreateMaps() {
     const originalFiles = await getFilesList(
         originalOwner,
@@ -74,6 +75,7 @@ async function getFilesAndCreateMaps() {
     return { originalFilesMap, translatedFilesMap };
 }
 
+// This function finds the common files between the original and translated repositories
 function getCommonFiles(originalFilesMap, translatedFilesMap) {
     const translatedFileNames = Object.keys(translatedFilesMap);
 
@@ -84,6 +86,7 @@ function getCommonFiles(originalFilesMap, translatedFilesMap) {
     return commonFiles;
 }
 
+// This function processes each common file to check if there are new commits in the original repository
 async function processCommonFiles(
     commonFiles,
     originalFilesMap,
@@ -93,23 +96,25 @@ async function processCommonFiles(
         const originalFilePath = originalFilesMap[file];
         const translatedFilePath = translatedFilesMap[file];
 
+        // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
             owner,
             repo,
             translatedFilePath
         );
+        // Get the date of the last commit for the file in the original repository
         const originalFileLastCommitDate = await getLastCommitDate(
             originalOwner,
             originalRepo,
             originalFilePath
         );
-
+        // Fetch the list of commits for the file in the original repository
         const { data: originalFileCommits } = await octokit.repos.listCommits({
             owner: originalOwner,
             repo: originalRepo,
             path: originalFilePath,
         });
-
+        // Filter the list of commits to only include those that are newer than the last commit in the translated repository
         const newCommits = originalFileCommits.filter(
             commit =>
                 new Date(commit.commit.committer.date) >
@@ -131,7 +136,7 @@ async function processCommonFiles(
                 );
             } catch (error) {
                 console.error(
-                    `--Error creating issue for file ${file}: ${error.message}`
+                    `--❌Error creating issue for file ${file}: ${error.message}`
                 );
             }
         } else {
@@ -188,14 +193,16 @@ async function createIssue(
             const commitMessages = await getCommitMessages(
                 originalOwner,
                 originalRepo,
-                newCommitsToComment
+                newCommitsToComment,
+                originalFilePath
             );
             await addCommentToIssue(existingIssue, commitMessages, file);
         } else {
             const commitMessages = await getCommitMessages(
                 originalOwner,
                 originalRepo,
-                newCommits
+                newCommits,
+                originalFilePath
             );
             await createNewIssue(
                 file,
@@ -205,7 +212,7 @@ async function createIssue(
             );
         }
     } catch (error) {
-        console.error(`--Error creating issue: ${error.message}`);
+        console.error(`--❌Error creating issue: ${error.message}`);
     }
 }
 
@@ -238,45 +245,68 @@ async function filterNewCommits(existingIssue, newCommits) {
             ].some(text => text.includes(commit.sha))
     );
 }
+// Define options for date formatting
+const DATE_OPTIONS = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+    timeZoneName: "short",
+};
+
+// Function to format a date according to the defined options
+function formatDate(date) {
+    return date
+        .toLocaleString("en-US", DATE_OPTIONS) // Convert the date to a string using the defined options
+        .replace(",", "") // Remove commas from the date string
+        .replace(" GMT", ""); // Remove " GMT" from the date string
+}
 
 // Function to get the commit messages for new commits
-async function getCommitMessages(owner, repo, newCommits) {
-    const commitDetails = await Promise.all(
-        newCommits.map(commit =>
-            octokit.repos.getCommit({
-                owner,
-                repo,
-                ref: commit.sha,
+async function getCommitMessages(owner, repo, newCommits, path) {
+    try {
+        const commitDetails = await Promise.all(
+            newCommits.map(commit =>
+                octokit.repos.getCommit({
+                    owner,
+                    repo,
+                    ref: commit.sha,
+                })
+            )
+        );
+
+        // Create a list of commit messages
+        const messages = await Promise.all(
+            commitDetails.flatMap(async ({ data }) => {
+                const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+                const formattedDate = formatDate(
+                    new Date(data.commit.committer.date)
+                );
+                // Get the first line of the commit message
+                const firstLineMessage = data.commit.message.split("\n")[0];
+
+                const diff = await getCommitDiff(data, path);
+
+                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
             })
-        )
-    );
+        );
 
-    // Create a list of commit messages
-    return commitDetails
-        .map(({ data }) => {
-            const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+        return messages.flat().join("\n");
+    } catch (error) {
+        console.error(`Error getting commit messages: ${error.message}`);
+    }
+}
 
-            let commitDate = new Date(data.commit.committer.date);
-            let options = {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-                timeZone: "UTC",
-                timeZoneName: "short",
-            };
-            let formattedDate = commitDate
-                .toLocaleString("en-US", options)
-                .replace(",", "")
-                .replace(" GMT", "");
+async function getCommitDiff(commit, path) {
+    const file = commit.files.find(file => file.filename === path);
 
-            const firstLineMessage = data.commit.message.split("\n")[0];
-
-            return `- [${firstLineMessage}](${commitUrl}) (additions: ${data.stats.additions}, deletions: ${data.stats.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
-        })
-        .join("\n");
+    return {
+        additions: file.additions,
+        deletions: file.deletions,
+    };
 }
 
 // Function to add a comment to an existing issue
@@ -289,9 +319,9 @@ async function addCommentToIssue(existingIssue, commitMessages, file) {
             body: `New commits have been made to the Odin's file. Please update the Kampus' file.\n\n Latest commits:\n${commitMessages}`,
         });
 
-        console.log(`---Comment added to issue for ${file}`);
+        console.log(`---✅Comment added to issue for ${file}`);
     } catch (error) {
-        console.error(`---Error adding comment to issue: ${error.message}`);
+        console.error(`---❌Error adding comment to issue: ${error.message}`);
     }
 }
 
@@ -311,16 +341,19 @@ async function createNewIssue(
             labels: ["curriculum-update"],
         });
 
-        console.log(`--Issue created successfully for ${file}`);
+        console.log(`--✅Issue created successfully for ${file}`);
     } catch (error) {
-        console.error(`--Error creating issue: ${error.message}`);
+        console.error(`--❌Error creating issue: ${error.message}`);
     }
 }
-
+// This is the main function that orchestrates the entire process
 async function main() {
     try {
+        // Fetch the list of files from both the original and translated repositories and create maps for them
         const { originalFilesMap, translatedFilesMap } =
             await getFilesAndCreateMaps();
+        
+        // Find the common files between the original and translated repositories
         const commonFiles = getCommonFiles(
             originalFilesMap,
             translatedFilesMap
@@ -333,6 +366,7 @@ async function main() {
             return;
         }
 
+        // Process each common file to check if there are new commits in the original repository
         await processCommonFiles(
             commonFiles,
             originalFilesMap,
