@@ -2,13 +2,15 @@
 const deers = require("deers");
 console.log(deers()[3]);
 
+const path = require("path");
+
 // Importing required modules
 const { Octokit } = require("@octokit/rest"); // GitHub API client
 
 // Setting up Octokit with authentication
 const octokit = new Octokit({
     auth: process.env.ACCESS_TOKEN, // Placeholder token, replace with a valid token
- });
+});
 
 // Files to ignore
 const filesToIgnore = process.env.IGNORE_FILES.split(","); // Comma separated list of files to ignore
@@ -49,15 +51,16 @@ async function getFilesList(owner, repo, branch) {
     return files;
 }
 
-// Function to create a map of file names to file paths
 function createFilesMap(files) {
-    return files.reduce((map, file) => {
-        const fileName = file.split("/").pop().toLowerCase();
+    const filesMap = {};
+    for (const file of files) {
+        const fileName = path.basename(file).toLowerCase();
         if (!filesToIgnore.includes(fileName)) {
-            map[fileName] = file;
+            // Use file.path as the key instead of file.name
+            filesMap[file] = file;
         }
-        return map;
-    }, {});
+    }
+    return filesMap;
 }
 
 // This function fetches the list of files from both the original and translated repositories and creates maps for them.
@@ -74,14 +77,16 @@ async function getFilesAndCreateMaps() {
 
     return { originalFilesMap, translatedFilesMap };
 }
-
 // This function finds the common files between the original and translated repositories
 function getCommonFiles(originalFilesMap, translatedFilesMap) {
-    const translatedFileNames = Object.keys(translatedFilesMap);
+    const originalFilePaths = Object.keys(originalFilesMap);
 
-    const commonFiles = translatedFileNames.filter(
-        file => originalFilesMap.hasOwnProperty(file) && file.endsWith(".md")
-    );
+    const commonFiles = Object.entries(translatedFilesMap)
+        .filter(
+            ([filePath]) =>
+                originalFilePaths.includes(filePath) && filePath.endsWith(".md")
+        )
+        .map(([_, filePath]) => filePath);
 
     return commonFiles;
 }
@@ -92,9 +97,9 @@ async function processCommonFiles(
     originalFilesMap,
     translatedFilesMap
 ) {
-    for (const file of commonFiles) {
-        const originalFilePath = originalFilesMap[file];
-        const translatedFilePath = translatedFilesMap[file];
+    for (const filePath of commonFiles) {
+        const originalFilePath = originalFilesMap[filePath];
+        const translatedFilePath = translatedFilesMap[filePath];
 
         // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
@@ -123,26 +128,29 @@ async function processCommonFiles(
 
         if (newCommits.length > 0) {
             console.log(
-                `Last commit date for ${file}: ${originalFileLastCommitDate}`
+                `Last commit date for ${filePath}: ${originalFileLastCommitDate}`
             );
-            console.log(`-Found ${newCommits.length} new commits for ${file}`);
+            console.log(
+                `-Found ${newCommits.length} new commits for ${filePath}`
+            );
 
             try {
                 await createIssue(
                     originalFilePath,
                     translatedFilePath,
-                    file,
+                    filePath,
                     newCommits
                 );
             } catch (error) {
                 console.error(
-                    `--❌Error creating issue for file ${file}: ${error.message}`
+                    `--❌Error creating issue for file ${filePath}: ${error.message}`
                 );
             }
         } else {
-            console.log(`-No new commits found for ${file}`);
+            console.log(`-No new commits found for ${filePath}`);
         }
     }
+    console.log(commonFiles);
 }
 
 // Function to get the date of the last commit for a file
@@ -275,25 +283,25 @@ async function getCommitMessages(owner, repo, newCommits, path) {
                     repo,
                     ref: commit.sha,
                 })
-        ));
+            )
+        );
 
         // Create a list of commit messages
-        return commitDetails.map(({ data }) => {
-            const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
-            const formattedDate = formatDate(
-                new Date(data.commit.committer.date)
-            );
-            // Get the first line of the commit message
-            const firstLineMessage = data.commit.message.split("\n")[0];
+        return commitDetails
+            .map(({ data }) => {
+                const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+                const formattedDate = formatDate(
+                    new Date(data.commit.committer.date)
+                );
+                // Get the first line of the commit message
+                const firstLineMessage = data.commit.message.split("\n")[0];
 
-            // Get the additions and deletions for the file in the commit by passing commit data and path
-            const diff = getCommitDiff(data, path);
+                // Get the additions and deletions for the file in the commit by passing commit data and path
+                const diff = getCommitDiff(data, path);
 
-            return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
-            
-        })
+                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
+            })
             .join("\n");
-        
     } catch (error) {
         console.error(`Error getting commit messages: ${error.message}`);
     }
@@ -352,7 +360,7 @@ async function main() {
         // Fetch the list of files from both the original and translated repositories and create maps for them
         const { originalFilesMap, translatedFilesMap } =
             await getFilesAndCreateMaps();
-        
+
         // Find the common files between the original and translated repositories
         const commonFiles = getCommonFiles(
             originalFilesMap,
