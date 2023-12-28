@@ -12,8 +12,10 @@ const octokit = new Octokit({
     auth: process.env.ACCESS_TOKEN, // Placeholder token, replace with a valid token
 });
 
+
 // Files to ignore
-const filesToIgnore = process.env.IGNORE_FILES.split(","); // Comma separated list of files to ignore
+const filesToIgnore = process.env.IGNORE_FILES.split(",").map(file => file.toLowerCase()); // Comma separated list of files to ignore 
+console.log(filesToIgnore);
 
 // Repository and folder paths
 const translatedOwner = process.env.TRANSLATED_OWNER; // Owner of the translated repository
@@ -25,6 +27,8 @@ const originalOwner = process.env.ORIGINAL_OWNER; // Owner of the original repos
 const originalRepo = process.env.ORIGINAL_REPO; // Name of the original repository
 const originalSubdirectory = process.env.ORIGINAL_SUBDIRECTORY; // Subdirectory of the repository to compare
 const originalBranch = process.env.ORIGINAL_BRANCH; // Name of the branch to compare with
+
+const issueLabel = process.env.ISSUE_LABEL; // Label to add to the issue
 
 // Function to get the list of files in a repository
 async function getFilesList(owner, repo, subdirectory, branch) {
@@ -40,7 +44,7 @@ async function getFilesList(owner, repo, subdirectory, branch) {
 
         files = data.tree
             .filter(item => item.type === "blob")
-            .map(item => item.path.replace(subdirectory, "")); // Remove the subdirectory from the file path
+            .map(item => item.path.replace(subdirectory, "").toLowerCase()); // Remove the subdirectory from the file path
 
         console.log(
             `Found ${files.length} files in the ${owner}/${repo} repository.`
@@ -57,7 +61,7 @@ async function getFilesList(owner, repo, subdirectory, branch) {
 function createFilesArray(files) {
     const filesArray = [];
     for (const filePath of files) {
-        const fileName = path.basename(filePath).toLowerCase();
+        const fileName = path.basename(filePath);
         if (!filesToIgnore.includes(fileName)) {
             filesArray.push(filePath);
         }
@@ -86,9 +90,9 @@ async function getFilesAndCreateArrays() {
     return { originalFilesArray, translatedFilesArray };
 }
 // This function finds the common files between the original and translated repositories
-function getCommonFiles(original, translated) {
-    const commonFiles = original.filter(
-        filePath => translated.includes(filePath) && filePath.endsWith(".md")
+function getCommonFiles(originalArray, translatedArray) {
+    const commonFiles = originalArray.filter(
+        filePath => translatedArray.includes(filePath) && filePath.endsWith(".md")
     );
 
     return commonFiles;
@@ -100,7 +104,7 @@ async function processCommonFiles(commonFiles) {
         const originalFilePath = originalSubdirectory + filePath;
         const translatedFilePath = translatedSubdirectory + filePath;
 
-        const fileName = path.basename(filePath).toLowerCase();
+        const fileName = path.basename(filePath);
 
         // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
@@ -344,9 +348,9 @@ async function createNewIssue(
         await octokit.issues.create({
             translatedOwner,
             translatedRepo,
-            title: `Translation update needed on \`${file}\``,
+            title: `Curriculum update needed on \`${file}\``,
             body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus' file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
-            labels: ["curriculum-update"],
+            labels: issueLabel,
         });
 
         console.log(`--✅Issue created successfully for ${file}`);
