@@ -24,10 +24,15 @@ jobs:
       run: node bot.js
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
+
         IGNORE_FILES: 'readme.md,license.md' # List of files to ignore
-        OWNER: 'kamp-us' # Owner of the translated repository
-        REPO: 'turkce-odin-project' # Name of the translated repository
-        BRANCH: 'main' # Name of the branch to compare with
+
+        TRANSLATED_OWNER: 'kamp-us' # Owner of the translated repository
+        TRANSLATED_REPO: 'monorepo' # Name of the translated repository
+        TRANSLATED_SUBDIRECTORY: 'content/odin/' # Name of the translated subdirectory (if any, otherwise leave blank)
+        TRANSLATED_BRANCH: 'dev' # Name of the branch to compare with
+
         ORIGINAL_OWNER: 'TheOdinProject' # Owner of the original repository
         ORIGINAL_REPO: 'curriculum' # Name of the original repository
+        ORIGINAL_SUBDIRECTORY: '' # Name of the original subdirectory (if any, otherwise leave blank)
         ORIGINAL_BRANCH: 'main' # Name of the branch to compare with
