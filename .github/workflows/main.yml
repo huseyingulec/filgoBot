@@ -10,29 +10,31 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v2
+        - uses: actions/checkout@v2
 
-            - name: Use Node.js
-              uses: actions/setup-node@v2
-              with:
-                  node-version: "18.17.0" # Specify the Node.js version
+        - name: Use Node.js
+            uses: actions/setup-node@v2
+            with:
+                node-version: "18.17.0" # Specify the Node.js version
 
-            - name: Install dependencies
-              run: npm ci
+        - name: Install dependencies
+            run: npm ci
 
-            - name: Run bot
-              run: node bot.js
-              env:
-                  ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
+        - name: Run bot
+            run: node bot.js
+            env:
+                ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
 
-                  IGNORE_FILES: "readme.md,license.md,PULL_REQUEST_TEMPLATE.md" # List of files to ignore
+                IGNORE_FILES: "readme.md,license.md,PULL_REQUEST_TEMPLATE.md" # List of files to ignore
 
-                  TRANSLATED_OWNER: "kamp-us" # Owner of the translated repository
-                  TRANSLATED_REPO: "monorepo" # Name of the translated repository
-                  TRANSLATED_SUBDIRECTORY: "content/odin/" # Name of the translated subdirectory (if any, otherwise leave blank)
-                  TRANSLATED_BRANCH: "dev" # Name of the branch to compare with
+                TRANSLATED_OWNER: "kamp-us" # Owner of the translated repository
+                TRANSLATED_REPO: "monorepo" # Name of the translated repository
+                TRANSLATED_SUBDIRECTORY: "content/odin/" # Name of the translated subdirectory (if any, otherwise leave blank)
+                TRANSLATED_BRANCH: "dev" # Name of the branch to compare with
 
-                  ORIGINAL_OWNER: "TheOdinProject" # Owner of the original repository
-                  ORIGINAL_REPO: "curriculum" # Name of the original repository
-                  ORIGINAL_SUBDIRECTORY: "" # Name of the original subdirectory (if any, otherwise leave blank)
-                  ORIGINAL_BRANCH: "main" # Name of the branch to compare with
+                ORIGINAL_OWNER: "TheOdinProject" # Owner of the original repository
+                ORIGINAL_REPO: "curriculum" # Name of the original repository
+                ORIGINAL_SUBDIRECTORY: "" # Name of the original subdirectory (if any, otherwise leave blank)
+                ORIGINAL_BRANCH: "main" # Name of the branch to compare with
+
+                ISSUE_LABEL: "content/odin" # Label to add to the issue
