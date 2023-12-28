@@ -60,7 +60,6 @@ function createFilesArray(files) {
         const fileName = path.basename(filePath).toLowerCase();
         if (!filesToIgnore.includes(fileName)) {
             filesArray.push(filePath);
-
         }
     }
     return filesArray;
@@ -88,8 +87,8 @@ async function getFilesAndCreateArrays() {
 }
 // This function finds the common files between the original and translated repositories
 function getCommonFiles(original, translated) {
-    const commonFiles = original.filter(filePath => 
-        translated.includes(filePath) && filePath.endsWith(".md")
+    const commonFiles = original.filter(
+        filePath => translated.includes(filePath) && filePath.endsWith(".md")
     );
 
     return commonFiles;
@@ -100,8 +99,6 @@ async function processCommonFiles(commonFiles) {
     for (const filePath of commonFiles) {
         const originalFilePath = originalSubdirectory + filePath;
         const translatedFilePath = translatedSubdirectory + filePath;
-        console.log(originalFilePath);
-        console.log(translatedFilePath);
 
         const fileName = path.basename(filePath).toLowerCase();
 
@@ -155,7 +152,6 @@ async function processCommonFiles(commonFiles) {
         }
     }
 }
-
 
 // Function to get the date of the last commit for a file
 async function getLastCommitDate(owner, repo, path) {
