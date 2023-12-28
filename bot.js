@@ -16,16 +16,18 @@ const octokit = new Octokit({
 const filesToIgnore = process.env.IGNORE_FILES.split(","); // Comma separated list of files to ignore
 
 // Repository and folder paths
-const owner = process.env.OWNER; // Owner of the translated repository
-const repo = process.env.REPO; // Name of the translated repository
-const branch = process.env.BRANCH; // Name of the branch to compare with
+const translatedOwner = process.env.TRANSLATED_OWNER; // Owner of the translated repository
+const translatedRepo = process.env.TRANSLATED_REPO; // Name of the translated repository
+const translatedSubdirectory = process.env.TRANSLATED_SUBDIRECTORY; // Subdirectory of the repository to compare
+const translatedBranch = process.env.TRANSLATED_BRANCH; // Name of the branch to compare with
 
 const originalOwner = process.env.ORIGINAL_OWNER; // Owner of the original repository
 const originalRepo = process.env.ORIGINAL_REPO; // Name of the original repository
+const originalSubdirectory = process.env.ORIGINAL_SUBDIRECTORY; // Subdirectory of the repository to compare
 const originalBranch = process.env.ORIGINAL_BRANCH; // Name of the branch to compare with
 
 // Function to get the list of files in a repository
-async function getFilesList(owner, repo, branch) {
+async function getFilesList(owner, repo, subdirectory, branch) {
     let files = [];
 
     try {
@@ -38,7 +40,7 @@ async function getFilesList(owner, repo, branch) {
 
         files = data.tree
             .filter(item => item.type === "blob")
-            .map(item => item.path);
+            .map(item => item.path.replace(subdirectory, "")); // Remove the subdirectory from the file path
 
         console.log(
             `Found ${files.length} files in the ${owner}/${repo} repository.`
@@ -51,62 +53,62 @@ async function getFilesList(owner, repo, branch) {
     return files;
 }
 
-function createFilesMap(files) {
-    const filesMap = {};
-    for (const file of files) {
-        const fileName = path.basename(file).toLowerCase();
+// Function to create a map of files
+function createFilesArray(files) {
+    const filesArray = [];
+    for (const filePath of files) {
+        const fileName = path.basename(filePath).toLowerCase();
         if (!filesToIgnore.includes(fileName)) {
-            // Use file.path as the key instead of file.name
-            filesMap[file] = file;
+            filesArray.push(filePath);
+
         }
     }
-    return filesMap;
+    return filesArray;
 }
 
 // This function fetches the list of files from both the original and translated repositories and creates maps for them.
-async function getFilesAndCreateMaps() {
+async function getFilesAndCreateArrays() {
     const originalFiles = await getFilesList(
         originalOwner,
         originalRepo,
+        originalSubdirectory,
         originalBranch
     );
-    const translatedFiles = await getFilesList(owner, repo, branch);
+    const translatedFiles = await getFilesList(
+        translatedOwner,
+        translatedRepo,
+        translatedSubdirectory,
+        translatedBranch
+    );
 
-    const originalFilesMap = createFilesMap(originalFiles);
-    const translatedFilesMap = createFilesMap(translatedFiles);
+    const originalFilesArray = createFilesArray(originalFiles);
+    const translatedFilesArray = createFilesArray(translatedFiles);
 
-    return { originalFilesMap, translatedFilesMap };
+    return { originalFilesArray, translatedFilesArray };
 }
 // This function finds the common files between the original and translated repositories
-function getCommonFiles(originalFilesMap, translatedFilesMap) {
-    const originalFilePaths = Object.keys(originalFilesMap);
-
-    const commonFiles = Object.entries(translatedFilesMap)
-        .filter(
-            ([filePath]) =>
-                originalFilePaths.includes(filePath) && filePath.endsWith(".md")
-        )
-        .map(([_, filePath]) => filePath);
+function getCommonFiles(original, translated) {
+    const commonFiles = original.filter(filePath => 
+        translated.includes(filePath) && filePath.endsWith(".md")
+    );
 
     return commonFiles;
 }
 
 // This function processes each common file to check if there are new commits in the original repository
-async function processCommonFiles(
-    commonFiles,
-    originalFilesMap,
-    translatedFilesMap
-) {
+async function processCommonFiles(commonFiles) {
     for (const filePath of commonFiles) {
-        const originalFilePath = originalFilesMap[filePath];
-        const translatedFilePath = translatedFilesMap[filePath];
+        const originalFilePath = originalSubdirectory + filePath;
+        const translatedFilePath = translatedSubdirectory + filePath;
+        console.log(originalFilePath);
+        console.log(translatedFilePath);
 
-        const fileName = path.basename(filePath);
+        const fileName = path.basename(filePath).toLowerCase();
 
         // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
-            owner,
-            repo,
+            translatedOwner,
+            translatedRepo,
             translatedFilePath
         );
         // Get the date of the last commit for the file in the original repository
@@ -154,6 +156,7 @@ async function processCommonFiles(
     }
 }
 
+
 // Function to get the date of the last commit for a file
 async function getLastCommitDate(owner, repo, path) {
     let date;
@@ -183,8 +186,8 @@ async function createIssue(
     newCommits
 ) {
     try {
-        const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/main/${originalFilePath}`;
-        const translatedFileUrl = `https://github.com/${owner}/${repo}/blob/main/${translatedFilePath}`;
+        const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/${originalBranch}}/${originalFilePath}`;
+        const translatedFileUrl = `https://github.com/${translatedOwner}/${translatedRepo}/blob/${translatedBranch}/${translatedFilePath}`;
 
         const existingIssue = await getExistingIssue(file);
         if (existingIssue) {
@@ -225,11 +228,11 @@ async function createIssue(
     }
 }
 
-// Function to get an existing issue for a file
+// Function to get an existing issue for a file in translated repository
 async function getExistingIssue(file) {
     const { data: issues } = await octokit.issues.listForRepo({
-        owner,
-        repo,
+        translatedOwner,
+        translatedRepo,
         state: "open",
     });
 
@@ -240,8 +243,8 @@ async function getExistingIssue(file) {
 // Function to filter out the commits that were already commented on
 async function filterNewCommits(existingIssue, newCommits) {
     const { data: comments } = await octokit.issues.listComments({
-        owner,
-        repo,
+        translatedOwner,
+        translatedRepo,
         issue_number: existingIssue.number,
     });
 
@@ -322,8 +325,8 @@ function getCommitDiff(commit, path) {
 async function addCommentToIssue(existingIssue, commitMessages, file) {
     try {
         await octokit.issues.createComment({
-            owner,
-            repo,
+            translatedOwner,
+            translatedRepo,
             issue_number: existingIssue.number,
             body: `New commits have been made to the Odin's file. Please update the Kampus' file.\n\n Latest commits:\n${commitMessages}`,
         });
@@ -334,7 +337,7 @@ async function addCommentToIssue(existingIssue, commitMessages, file) {
     }
 }
 
-// Function to create a new issue
+// Function to create a new issue in the translated repository
 async function createNewIssue(
     file,
     originalFileUrl,
@@ -343,8 +346,8 @@ async function createNewIssue(
 ) {
     try {
         await octokit.issues.create({
-            owner,
-            repo,
+            translatedOwner,
+            translatedRepo,
             title: `Translation update needed on \`${file}\``,
             body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus' file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
             labels: ["curriculum-update"],
@@ -359,13 +362,13 @@ async function createNewIssue(
 async function main() {
     try {
         // Fetch the list of files from both the original and translated repositories and create maps for them
-        const { originalFilesMap, translatedFilesMap } =
-            await getFilesAndCreateMaps();
+        const { originalFilesArray, translatedFilesArray } =
+            await getFilesAndCreateArrays();
 
         // Find the common files between the original and translated repositories
         const commonFiles = getCommonFiles(
-            originalFilesMap,
-            translatedFilesMap
+            originalFilesArray,
+            translatedFilesArray
         );
 
         console.log(`Found ${commonFiles.length} common markdown files.`);
@@ -376,11 +379,7 @@ async function main() {
         }
 
         // Process each common file to check if there are new commits in the original repository
-        await processCommonFiles(
-            commonFiles,
-            originalFilesMap,
-            translatedFilesMap
-        );
+        await processCommonFiles(commonFiles);
     } catch (error) {
         console.error(`-Error: ${error.message}`);
     }
