@@ -185,7 +185,7 @@ async function createIssue(
 
         const existingIssue = await getExistingIssue(fileName);
         if (existingIssue) {
-            console.log(`--Issue already exists for file ${file}`);
+            console.log(`--Issue already exists for file ${fileName}`);
             const newCommitsToComment = await filterNewCommits(
                 existingIssue,
                 newCommits
