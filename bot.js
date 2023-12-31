@@ -12,7 +12,6 @@ const octokit = new Octokit({
     auth: process.env.ACCESS_TOKEN, // Placeholder token, replace with a valid token
 });
 
-
 // Files to ignore
 const filesToIgnore = process.env.IGNORE_FILES.split(",").map(file => file.toLowerCase()); // Comma separated list of files to ignore 
 console.log(filesToIgnore);
@@ -28,7 +27,7 @@ const originalRepo = process.env.ORIGINAL_REPO; // Name of the original reposito
 const originalSubdirectory = process.env.ORIGINAL_SUBDIRECTORY; // Subdirectory of the repository to compare
 const originalBranch = process.env.ORIGINAL_BRANCH; // Name of the branch to compare with
 
-const issueLabel = process.env.ISSUE_LABEL; // Label to add to the issue
+const issueLabel = JSON.parse(process.env.ISSUE_LABEL);
 
 // Function to get the list of files in a repository
 async function getFilesList(owner, repo, subdirectory, branch) {
@@ -36,8 +35,8 @@ async function getFilesList(owner, repo, subdirectory, branch) {
 
     try {
         const { data } = await octokit.git.getTree({
-            owner,
-            repo,
+            owner: owner,
+            repo: repo,
             tree_sha: branch, // or the name of the default branch
             recursive: "1",
         });
@@ -138,19 +137,14 @@ async function processCommonFiles(commonFiles) {
             console.log(
                 `-Found ${newCommits.length} new commits for ${filePath}`
             );
-
-            try {
-                await createIssue(
-                    originalFilePath,
-                    translatedFilePath,
-                    fileName,
-                    newCommits
-                );
-            } catch (error) {
-                console.error(
-                    `--❌Error creating issue for file ${filePath}: ${error.message}`
-                );
-            }
+            
+            await createIssue(
+                originalFilePath,
+                translatedFilePath,
+                fileName,
+                newCommits
+            );
+        
         } else {
             console.log(`-No new commits found for ${filePath}`);
         }
@@ -162,9 +156,9 @@ async function getLastCommitDate(owner, repo, path) {
     let date;
     try {
         const { data: commits } = await octokit.repos.listCommits({
-            owner,
-            repo,
-            path,
+            owner: owner,
+            repo: repo,
+            path: path,
         });
 
         if (commits.length > 0) {
@@ -182,14 +176,14 @@ async function getLastCommitDate(owner, repo, path) {
 async function createIssue(
     originalFilePath,
     translatedFilePath,
-    file,
+    fileName,
     newCommits
 ) {
     try {
-        const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/${originalBranch}}/${originalFilePath}`;
+        const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/${originalBranch}/${originalFilePath}`;
         const translatedFileUrl = `https://github.com/${translatedOwner}/${translatedRepo}/blob/${translatedBranch}/${translatedFilePath}`;
 
-        const existingIssue = await getExistingIssue(file);
+        const existingIssue = await getExistingIssue(fileName);
         if (existingIssue) {
             console.log(`--Issue already exists for file ${file}`);
             const newCommitsToComment = await filterNewCommits(
@@ -198,7 +192,7 @@ async function createIssue(
             );
 
             if (newCommitsToComment.length === 0) {
-                console.log(`---No new commits to comment for ${file}`);
+                console.log(`---No new commits to comment for ${fileName}`);
                 return;
             }
 
@@ -208,7 +202,7 @@ async function createIssue(
                 newCommitsToComment,
                 originalFilePath
             );
-            await addCommentToIssue(existingIssue, commitMessages, file);
+            await addCommentToIssue(existingIssue, commitMessages, fileName);
         } else {
             const commitMessages = await getCommitMessages(
                 originalOwner,
@@ -217,7 +211,7 @@ async function createIssue(
                 originalFilePath
             );
             await createNewIssue(
-                file,
+                fileName,
                 originalFileUrl,
                 translatedFileUrl,
                 commitMessages
@@ -231,8 +225,8 @@ async function createIssue(
 // Function to get an existing issue for a file in translated repository
 async function getExistingIssue(file) {
     const { data: issues } = await octokit.issues.listForRepo({
-        translatedOwner,
-        translatedRepo,
+        owner: translatedOwner,
+        repo: translatedRepo,
         state: "open",
     });
 
@@ -243,8 +237,8 @@ async function getExistingIssue(file) {
 // Function to filter out the commits that were already commented on
 async function filterNewCommits(existingIssue, newCommits) {
     const { data: comments } = await octokit.issues.listComments({
-        translatedOwner,
-        translatedRepo,
+        owner: translatedOwner,
+        repo: translatedRepo,
         issue_number: existingIssue.number,
     });
 
@@ -283,8 +277,8 @@ async function getCommitMessages(owner, repo, newCommits, path) {
         const commitDetails = await Promise.all(
             newCommits.map(commit =>
                 octokit.repos.getCommit({
-                    owner,
-                    repo,
+                    owner: owner,
+                    repo: repo,
                     ref: commit.sha,
                 })
             )
@@ -293,7 +287,7 @@ async function getCommitMessages(owner, repo, newCommits, path) {
         // Create a list of commit messages
         return commitDetails
             .map(({ data }) => {
-                const commitUrl = `https://github.com/${owner}/${repo}/commit/${data.sha}`;
+                const commitUrl = data.html_url;
                 const formattedDate = formatDate(
                     new Date(data.commit.committer.date)
                 );
@@ -325,8 +319,8 @@ function getCommitDiff(commit, path) {
 async function addCommentToIssue(existingIssue, commitMessages, file) {
     try {
         await octokit.issues.createComment({
-            translatedOwner,
-            translatedRepo,
+            owner: translatedOwner,
+            repo: translatedRepo,
             issue_number: existingIssue.number,
             body: `New commits have been made to the Odin's file. Please update the Kampus' file.\n\n Latest commits:\n${commitMessages}`,
         });
@@ -346,8 +340,8 @@ async function createNewIssue(
 ) {
     try {
         await octokit.issues.create({
-            translatedOwner,
-            translatedRepo,
+            owner: translatedOwner,
+            repo: translatedRepo,
             title: `Curriculum update needed on \`${file}\``,
             body: `The Odin's file, [${file}](${originalFileUrl}) is updated. Please update the Kampus' file, checkout file here [${file}](${translatedFileUrl}) \n\n Latest commits:\n${commitMessages}`,
             labels: issueLabel,
@@ -355,7 +349,7 @@ async function createNewIssue(
 
         console.log(`--✅Issue created successfully for ${file}`);
     } catch (error) {
-        console.error(`--❌Error creating issue: ${error.message}`);
+        console.error(`--❌Error creating new issue: ${error.message}`);
     }
 }
 // This is the main function that orchestrates the entire process
