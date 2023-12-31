@@ -2,7 +2,7 @@
 
 This bot facilitates the updating of two GitHub repositories by identifying common Markdown files and managing their commit histories. It streamlines the process of tracking changes between original and translated files, automating the creation of issues for updates.
 
-## Currently we are using this bot for [turkce-odin-project](https://github.com/kamp-us/turkce-odin-project/issues), check it out!
+## Currently we are using this bot for [turkce-odin-project](https://github.com/kamp-us/monorepo/tree/dev/content/odin), check it out!
 
 ## How It Works
 
@@ -56,17 +56,23 @@ Open the .github/workflows/main.yml file in your repository. Change the followin
 
 ``filesToIgnore``: Files to ignore while comparing the files in the two repositories. For example, if you want to ignore the README.md file, add README.md to the list. You can add multiple files to the list.
 
-``owner``: GitHub repository 1 owner github username.
+``translatedOwner``: GitHub repository 1 owner github username.
 
-``repo``: GitHub repository 1 name.
+``translatedRepo``: GitHub repository 1 name.
 
-``branch``: GitHub repository 1 branch name.
+``translatedBranch``: GitHub repository 1 branch name.
+
+``translatedSubdirectory``: GitHub repository 1 subdirectory name if exists.
 
 ``originalOwner``: GitHub repository 2 owner github username.
 
 ``originalRepo``: GitHub repository 2 name.
 
 ``originalBranch``: GitHub repository 2 branch name.
+
+``originalSubdirectory``: GitHub repository 2 subdirectory name if exists.
+
+``issueLabel``: Label to be added to the issues created by the bot.
 
 Once the changes are pushed to the yml file, the GitHub Actions workflow will be triggered automatically in every 12 hours(if you want, you can change it or trigger it manually).
 
@@ -80,7 +86,7 @@ First of all, ensure the necessary credentials and permissions are set up for bo
 
 Pull the repository to your local machine. ```git clone https://github.com/huseyingulec/filgoBot.git```
 
-Install setups and dependencies ```npm install -y```
+Install setups and dependencies ```npm install```
 
 #### Configuration
 
@@ -95,17 +101,23 @@ You will need to create a personal access token with the following permissions:
 
 ``filesToIgnore``: Files to ignore while comparing the files in the two repositories. For example, if you want to ignore the README.md file, add README.md to the list. You can add multiple files to the list.
 
-``owner``: GitHub repository 1 owner github username.
+``translatedOwner``: GitHub repository 1 owner github username.
 
-``repo``: GitHub repository 1 name.
+``translatedRepo``: GitHub repository 1 name.
 
-``branch``: GitHub repository 1 branch name.
+``translatedBranch``: GitHub repository 1 branch name.
+
+``translatedSubdirectory``: GitHub repository 1 subdirectory name if exists.
 
 ``originalOwner``: GitHub repository 2 owner github username.
 
 ``originalRepo``: GitHub repository 2 name.
 
 ``originalBranch``: GitHub repository 2 branch name.
+
+``originalSubdirectory``: GitHub repository 2 subdirectory name if exists.
+
+``issueLabel``: Label to be added to the issues created by the bot.
 
 #### Run the bot ```node bot.js```
 
