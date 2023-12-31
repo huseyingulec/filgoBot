@@ -31,4 +31,4 @@ jobs:
                   ORIGINAL_SUBDIRECTORY: "" # Name of the original subdirectory (if any, otherwise leave blank)
                   ORIGINAL_BRANCH: "main" # Name of the branch to compare with
 
-                  ISSUE_LABEL: "content/odin" # Label to add to the issue
+                  ISSUE_LABEL: '["content/odin"]' # Label to add to the issue
