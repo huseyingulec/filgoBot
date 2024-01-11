@@ -13,7 +13,9 @@ const octokit = new Octokit({
 });
 
 // Files to ignore
-const filesToIgnore = process.env.IGNORE_FILES.split(",").map(file => file.toLowerCase()); // Comma separated list of files to ignore 
+const filesToIgnore = process.env.IGNORE_FILES.split(",").map(file =>
+    file.toLowerCase()
+); // Comma separated list of files to ignore
 console.log(filesToIgnore);
 
 // Repository and folder paths
@@ -28,6 +30,13 @@ const originalSubdirectory = process.env.ORIGINAL_SUBDIRECTORY; // Subdirectory 
 const originalBranch = process.env.ORIGINAL_BRANCH; // Name of the branch to compare with
 
 const issueLabel = JSON.parse(process.env.ISSUE_LABEL);
+
+// Function to check the rate limit status
+async function checkRateLimit() {
+    const { data } = await octokit.rateLimit.get();
+    console.log(`Github API limits ${data.resources.core}`); // This will log the core limit status
+    console.log(new Date(data.resources.core.reset * 1000)); // This will log the search limit status
+}
 
 // Function to get the list of files in a repository
 async function getFilesList(owner, repo, subdirectory, branch) {
@@ -91,7 +100,8 @@ async function getFilesAndCreateArrays() {
 // This function finds the common files between the original and translated repositories
 function getCommonFiles(originalArray, translatedArray) {
     const commonFiles = originalArray.filter(
-        filePath => translatedArray.includes(filePath) && filePath.endsWith(".md")
+        filePath =>
+            translatedArray.includes(filePath) && filePath.endsWith(".md")
     );
 
     return commonFiles;
@@ -111,12 +121,6 @@ async function processCommonFiles(commonFiles) {
             translatedRepo,
             translatedFilePath
         );
-        // Get the date of the last commit for the file in the original repository
-        const originalFileLastCommitDate = await getLastCommitDate(
-            originalOwner,
-            originalRepo,
-            originalFilePath
-        );
         // Fetch the list of commits for the file in the original repository
         const { data: originalFileCommits } = await octokit.repos.listCommits({
             owner: originalOwner,
@@ -124,27 +128,37 @@ async function processCommonFiles(commonFiles) {
             path: originalFilePath,
         });
         // Filter the list of commits to only include those that are newer than the last commit in the translated repository
-        const newCommits = originalFileCommits.filter(
+        const commits = originalFileCommits.filter(
             commit =>
                 new Date(commit.commit.committer.date) >
                 new Date(translatedFileLastCommitDate)
         );
+        // Filter out the commits that are already resolved in a closed issue
+        const newCommits = (
+            await Promise.all(
+                commits.map(async commit => {
+                    const isInClosedIssues = await isCommitInClosedIssues(
+                        commit
+                    );
+
+                    if (!isInClosedIssues) {
+                        return commit;
+                    }
+                })
+            )
+        ).filter(Boolean);
 
         if (newCommits.length > 0) {
             console.log(
-                `Last commit date for ${filePath}: ${originalFileLastCommitDate}`
-            );
-            console.log(
                 `-Found ${newCommits.length} new commits for ${filePath}`
             );
-            
+
             await createIssue(
                 originalFilePath,
                 translatedFilePath,
                 fileName,
                 newCommits
             );
-        
         } else {
             console.log(`-No new commits found for ${filePath}`);
         }
@@ -170,6 +184,36 @@ async function getLastCommitDate(owner, repo, path) {
         );
     }
     return date;
+}
+
+// Function to check if a commit is already resolved in a closed issue
+async function isCommitInClosedIssues(commit) {
+    const { data: closedIssues } = await octokit.issues.listForRepo({
+        owner: translatedOwner,
+        repo: translatedRepo,
+        state: "closed",
+        creator: "filgoBot",
+    });
+
+    const checkIssues = closedIssues.map(async issue => {
+        const { data: comments } = await octokit.issues.listComments({
+            owner: translatedOwner,
+            repo: translatedRepo,
+            issue_number: issue.number,
+        });
+
+        const texts = [issue.body, ...comments.map(comment => comment.body)];
+        if (texts.some(text => text.includes(commit.sha))) {
+            console.log(
+                `----Commit is already resolved in closed issue ${issue.number}`
+            );
+            return true;
+        }
+        return false;
+    });
+
+    const results = await Promise.all(checkIssues);
+    return results.some(result => result === true);
 }
 
 // Function to create a GitHub issue for a translation update
@@ -355,6 +399,7 @@ async function createNewIssue(
 // This is the main function that orchestrates the entire process
 async function main() {
     try {
+        await checkRateLimit();
         // Fetch the list of files from both the original and translated repositories and create maps for them
         const { originalFilesArray, translatedFilesArray } =
             await getFilesAndCreateArrays();
@@ -374,6 +419,7 @@ async function main() {
 
         // Process each common file to check if there are new commits in the original repository
         await processCommonFiles(commonFiles);
+        await checkRateLimit();
     } catch (error) {
         console.error(`-Error: ${error.message}`);
     }
