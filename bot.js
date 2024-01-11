@@ -34,7 +34,7 @@ const issueLabel = JSON.parse(process.env.ISSUE_LABEL);
 // Function to check the rate limit status
 async function checkRateLimit() {
     const { data } = await octokit.rateLimit.get();
-    console.log(`Github API limits ${data.resources.core}`); // This will log the core limit status
+    console.log(data.resources.core); // This will log the core limit status
     console.log(new Date(data.resources.core.reset * 1000)); // This will log the search limit status
 }
 
