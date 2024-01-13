@@ -15,8 +15,7 @@ const octokit = new Octokit({
 // Files to ignore
 const filesToIgnore = process.env.IGNORE_FILES.split(",").map(file =>
     file.toLowerCase()
-); // Comma separated list of files to ignore
-console.log(filesToIgnore);
+);
 
 // Repository and folder paths
 const translatedOwner = process.env.TRANSLATED_OWNER; // Owner of the translated repository
@@ -34,8 +33,10 @@ const issueLabel = JSON.parse(process.env.ISSUE_LABEL);
 // Function to check the rate limit status
 async function checkRateLimit() {
     const { data } = await octokit.rateLimit.get();
-    console.log(data.resources.core); // This will log the core limit status
-    console.log(new Date(data.resources.core.reset * 1000)); // This will log the search limit status
+    console.log(
+        `API Limit: ${data.resources.core.remaining}/5000, Reset time:`,
+        new Date(data.resources.core.reset * 1000)
+    ); // This will log the core limit status
 }
 
 // Function to get the list of files in a repository
@@ -52,7 +53,7 @@ async function getFilesList(owner, repo, subdirectory, branch) {
 
         files = data.tree
             .filter(item => item.type === "blob")
-            .map(item => item.path.replace(subdirectory, "").toLowerCase()); // Remove the subdirectory from the file path
+            .map(item => item.path.replace(subdirectory, "")); // Remove the subdirectory from the file path
 
         console.log(
             `Found ${files.length} files in the ${owner}/${repo} repository.`
@@ -70,7 +71,7 @@ function createFilesArray(files) {
     const filesArray = [];
     for (const filePath of files) {
         const fileName = path.basename(filePath);
-        if (!filesToIgnore.includes(fileName)) {
+        if (!filesToIgnore.includes(fileName.toLowerCase())) {
             filesArray.push(filePath);
         }
     }
@@ -113,8 +114,6 @@ async function processCommonFiles(commonFiles) {
         const originalFilePath = originalSubdirectory + filePath;
         const translatedFilePath = translatedSubdirectory + filePath;
 
-        const fileName = path.basename(filePath);
-
         // Get the date of the last commit for the file in the translated repository
         const translatedFileLastCommitDate = await getLastCommitDate(
             translatedOwner,
@@ -134,19 +133,16 @@ async function processCommonFiles(commonFiles) {
                 new Date(translatedFileLastCommitDate)
         );
         // Filter out the commits that are already resolved in a closed issue
-        const newCommits = (
-            await Promise.all(
-                commits.map(async commit => {
-                    const isInClosedIssues = await isCommitInClosedIssues(
-                        commit
-                    );
-
-                    if (!isInClosedIssues) {
-                        return commit;
-                    }
-                })
-            )
-        ).filter(Boolean);
+        let newCommits = [];
+        for (const commit of commits) {
+            const isInClosedIssues = await isCommitInClosedIssues(
+                commit,
+                filePath
+            );
+            if (!isInClosedIssues) {
+                newCommits.push(commit);
+            }
+        }
 
         if (newCommits.length > 0) {
             console.log(
@@ -156,8 +152,8 @@ async function processCommonFiles(commonFiles) {
             await createIssue(
                 originalFilePath,
                 translatedFilePath,
-                fileName,
-                newCommits
+                newCommits,
+                filePath
             );
         } else {
             console.log(`-No new commits found for ${filePath}`);
@@ -187,7 +183,7 @@ async function getLastCommitDate(owner, repo, path) {
 }
 
 // Function to check if a commit is already resolved in a closed issue
-async function isCommitInClosedIssues(commit) {
+async function isCommitInClosedIssues(commit, filePath) {
     const { data: closedIssues } = await octokit.issues.listForRepo({
         owner: translatedOwner,
         repo: translatedRepo,
@@ -203,9 +199,10 @@ async function isCommitInClosedIssues(commit) {
         });
 
         const texts = [issue.body, ...comments.map(comment => comment.body)];
-        if (texts.some(text => text.includes(commit.sha))) {
+        const commitIdentifier = `${commit.sha}:${filePath}`;
+        if (texts.some(text => text.includes(commitIdentifier))) {
             console.log(
-                `----Commit is already resolved in closed issue ${issue.number}`
+                `----Commit is already resolved for ${filePath} in closed issue ${issue.number}`
             );
             return true;
         }
@@ -220,39 +217,39 @@ async function isCommitInClosedIssues(commit) {
 async function createIssue(
     originalFilePath,
     translatedFilePath,
-    fileName,
-    newCommits
+    newCommits,
+    filePath
 ) {
     try {
+        const fileName = path.basename(filePath);
         const originalFileUrl = `https://github.com/${originalOwner}/${originalRepo}/blob/${originalBranch}/${originalFilePath}`;
         const translatedFileUrl = `https://github.com/${translatedOwner}/${translatedRepo}/blob/${translatedBranch}/${translatedFilePath}`;
 
-        const existingIssue = await getExistingIssue(fileName);
+        const existingIssue = await getExistingIssue(filePath);
         if (existingIssue) {
-            console.log(`--Issue already exists for file ${fileName}`);
+            console.log(`--Issue already exists for file ${filePath}`);
             const newCommitsToComment = await filterNewCommits(
                 existingIssue,
-                newCommits
+                newCommits,
+                filePath
             );
 
             if (newCommitsToComment.length === 0) {
-                console.log(`---No new commits to comment for ${fileName}`);
+                console.log(`---No new commits to comment for ${filePath}`);
                 return;
             }
 
             const commitMessages = await getCommitMessages(
-                originalOwner,
-                originalRepo,
                 newCommitsToComment,
-                originalFilePath
+                originalFilePath,
+                filePath
             );
             await addCommentToIssue(existingIssue, commitMessages, fileName);
         } else {
             const commitMessages = await getCommitMessages(
-                originalOwner,
-                originalRepo,
                 newCommits,
-                originalFilePath
+                originalFilePath,
+                filePath
             );
             await createNewIssue(
                 fileName,
@@ -267,23 +264,25 @@ async function createIssue(
 }
 
 // Function to get an existing issue for a file in translated repository
-async function getExistingIssue(file) {
+async function getExistingIssue(filePath) {
     const { data: issues } = await octokit.issues.listForRepo({
         owner: translatedOwner,
         repo: translatedRepo,
         state: "open",
+        creator: "filgoBot",
     });
 
     // Find an issue with the same title as the file
-    return issues.find(issue => issue.title.includes(file));
+    return issues.find(issue => issue.body.includes(filePath));
 }
 
 // Function to filter out the commits that were already commented on
-async function filterNewCommits(existingIssue, newCommits) {
+async function filterNewCommits(existingIssue, newCommits, filePath) {
     const { data: comments } = await octokit.issues.listComments({
         owner: translatedOwner,
         repo: translatedRepo,
         issue_number: existingIssue.number,
+        creator: "filgoBot",
     });
 
     // Filter out the commits that were already commented on
@@ -292,7 +291,7 @@ async function filterNewCommits(existingIssue, newCommits) {
             ![
                 existingIssue.body,
                 ...comments.map(comment => comment.body),
-            ].some(text => text.includes(commit.sha))
+            ].some(text => text.includes(`${commit.sha}:${filePath}`))
     );
 }
 // Define options for date formatting
@@ -316,13 +315,13 @@ function formatDate(date) {
 }
 
 // Function to get the commit messages for new commits
-async function getCommitMessages(owner, repo, newCommits, path) {
+async function getCommitMessages(newCommits, path, filePath) {
     try {
         const commitDetails = await Promise.all(
             newCommits.map(commit =>
                 octokit.repos.getCommit({
-                    owner: owner,
-                    repo: repo,
+                    owner: originalOwner,
+                    repo: originalRepo,
                     ref: commit.sha,
                 })
             )
@@ -341,7 +340,7 @@ async function getCommitMessages(owner, repo, newCommits, path) {
                 // Get the additions and deletions for the file in the commit by passing commit data and path
                 const diff = getCommitDiff(data, path);
 
-                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha} -->`;
+                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha}:${filePath} -->`;
             })
             .join("\n");
     } catch (error) {
