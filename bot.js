@@ -39,6 +39,47 @@ async function checkRateLimit() {
     ); // This will log the core limit status
 }
 
+// This is the main function that orchestrates the entire process
+async function main() {
+    try {
+        await checkRateLimit();
+        const { originalFilesArray, translatedFilesArray } = await getFilesArray();
+        const commonFiles = getCommonFiles( originalFilesArray,translatedFilesArray);
+
+        console.log(`Found ${commonFiles.length} common markdown files.`);
+
+        if (commonFiles.length === 0) {
+            console.log("No common markdown files found.");
+            return;
+        }
+
+        // Process each common file to check if there are new commits in the original repository
+        await processCommonFiles(commonFiles);
+        await checkRateLimit();
+    } catch (error) {
+        console.error(`-Error: ${error.message}`);
+    }
+}
+
+main().catch(error => console.error(`Unhandled error: ${error.message}`));
+
+// This function fetches the list of files from both the original and translated repositories and creates arrays for them.
+async function getFilesArray() {
+    const originalFilesArray = await getFilesList(
+        originalOwner,
+        originalRepo,
+        originalSubdirectory,
+        originalBranch
+    );
+    const translatedFilesArray = await getFilesList(
+        translatedOwner,
+        translatedRepo,
+        translatedSubdirectory,
+        translatedBranch
+    );
+    return { originalFilesArray, translatedFilesArray };
+}
+
 // Function to get the list of files in a repository
 async function getFilesList(owner, repo, subdirectory, branch) {
     let files = [];
@@ -47,7 +88,7 @@ async function getFilesList(owner, repo, subdirectory, branch) {
         const { data } = await octokit.git.getTree({
             owner: owner,
             repo: repo,
-            tree_sha: branch, // or the name of the default branch
+            tree_sha: branch,
             recursive: "1",
         });
 
@@ -66,43 +107,12 @@ async function getFilesList(owner, repo, subdirectory, branch) {
     return files;
 }
 
-// Function to create a map of files
-function createFilesArray(files) {
-    const filesArray = [];
-    for (const filePath of files) {
-        const fileName = path.basename(filePath);
-        if (!filesToIgnore.includes(fileName.toLowerCase())) {
-            filesArray.push(filePath);
-        }
-    }
-    return filesArray;
-}
-
-// This function fetches the list of files from both the original and translated repositories and creates maps for them.
-async function getFilesAndCreateArrays() {
-    const originalFiles = await getFilesList(
-        originalOwner,
-        originalRepo,
-        originalSubdirectory,
-        originalBranch
-    );
-    const translatedFiles = await getFilesList(
-        translatedOwner,
-        translatedRepo,
-        translatedSubdirectory,
-        translatedBranch
-    );
-
-    const originalFilesArray = createFilesArray(originalFiles);
-    const translatedFilesArray = createFilesArray(translatedFiles);
-
-    return { originalFilesArray, translatedFilesArray };
-}
 // This function finds the common files between the original and translated repositories
 function getCommonFiles(originalArray, translatedArray) {
     const commonFiles = originalArray.filter(
         filePath =>
-            translatedArray.includes(filePath) && filePath.endsWith(".md")
+            translatedArray.includes(filePath) && filePath.endsWith(".md") &&
+            !filesToIgnore.includes(filePath.toLowerCase())
     );
 
     return commonFiles;
@@ -395,33 +405,3 @@ async function createNewIssue(
         console.error(`--❌Error creating new issue: ${error.message}`);
     }
 }
-// This is the main function that orchestrates the entire process
-async function main() {
-    try {
-        await checkRateLimit();
-        // Fetch the list of files from both the original and translated repositories and create maps for them
-        const { originalFilesArray, translatedFilesArray } =
-            await getFilesAndCreateArrays();
-
-        // Find the common files between the original and translated repositories
-        const commonFiles = getCommonFiles(
-            originalFilesArray,
-            translatedFilesArray
-        );
-
-        console.log(`Found ${commonFiles.length} common markdown files.`);
-
-        if (commonFiles.length === 0) {
-            console.log("No common markdown files found.");
-            return;
-        }
-
-        // Process each common file to check if there are new commits in the original repository
-        await processCommonFiles(commonFiles);
-        await checkRateLimit();
-    } catch (error) {
-        console.error(`-Error: ${error.message}`);
-    }
-}
-
-main().catch(error => console.error(`Unhandled error: ${error.message}`));
