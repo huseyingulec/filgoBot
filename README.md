@@ -1,4 +1,4 @@
-# filgoBot
+# filgoBot [more detailed overview is below](#detailed-overview)
 
 This bot facilitates the updating of two GitHub repositories by identifying common Markdown files and managing their commit histories. It streamlines the process of tracking changes between original and translated files, automating the creation of issues for updates.
 
@@ -125,3 +125,51 @@ You will need to create a personal access token with the following permissions:
 
 This project is licensed under the [MIT License](LICENSE.md).
 
+# Detailed Overview
+
+## Project Purpose
+The filgoBot is designed to facilitate the synchronization of markdown files between an original repository(Odin) and a translated repository(Kampus) on GitHub. It aims to identify new commits made to markdown files in the original repository and prompt updates in the translated repository. This synchronization is crucial for maintaining accurate and up-to-date translations.
+
+## Components and Interactions
+The key components in the codebase include:
+1. **GitHub API Integration**: Utilizes the Octokit library to interact with the GitHub API for repository, commit and issue information.
+
+2. **File Comparison**: Identifies common markdown files between the original and translated repositories.
+
+3. **Commit Analysis**: Checks for new commits in the original repository for a specific file and filters out older commits and already resolved commits in closed issues. For example, if a commit is made in the original repository on 5th September at 10:00 am, and the latest commit in the translated repository for the same file is on 4th September, filgoBot will open an issue to prompt this new commit.
+
+4. **Issue Management**: Creates or comments GitHub issues in the translated repository for a specific file to prompt file updates.
+
+## Workflow Explanation
+
+### Authentication
+The codebase authenticates with GitHub using a provided access token (`process.env.ACCESS_TOKEN`).
+
+### Configuration
+The repositories, subdirectories, branches, and labels are configured using environment variables (`process.env`).
+
+### File Retrieval
+**`getFilesArray` Function**: Fetches the list of files in both original and translated repositories.
+
+### File Comparison
+The `getCommonFiles` function identifies markdown files common to both repositories, excluding specified files (e.g., `readme.md`, `licence.md`).
+
+### Commit Analysis
+1. **`processCommonFiles` Function**: Processes common files with a file-based loop to check for new commits.
+
+2. **`getLastCommitDate` Function**: Retrieves the date of the last commit for a file in a repository.
+
+3. **`isCommitInClosedIssues` Function**: Checks if a commit is already resolved in closed GitHub issues. In some commits in the original repo, they are fixing some typos in which we have already fixed while translating so we don't have push a new commit but if we didn't push a new commit, bot was going to open a new issue all the time. To fix this problem, I hid a unique key in the issue text that I created with {commit.sha}:{filePath}, so if in any closed issue includes this key, this commit will be excluded.
+
+### Issue Management
+1. **`createIssue` Function**: Creates or comments GitHub issues for translation updates for a specific file.
+
+2. **`getExistingIssue` Function**: Retrieves an existing issue for a file in the translated repository. If none exists, pass to `createNewIssue`.
+
+3. **`filterNewCommits` Function**: Filters out commits that were already commented on in an existing issue.
+
+4. **`addCommentToIssue` Function**: Adds comments to an existing issue detailing new commits.
+
+5. **`createNewIssue` Function**: Creates a new issue in the translated repository with details on updates.
+
+This codebase ensures that translated markdown files are updated promptly based on new commits in the original repository, facilitating efficient maintenance of translated content.
