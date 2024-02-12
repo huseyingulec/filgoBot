@@ -1,6 +1,7 @@
 // Add a deer to the console
 const deers = require("deers");
 console.log(deers()[3]);
+require('dotenv').config();
 
 const path = require("path");
 
@@ -34,8 +35,7 @@ const issueLabel = JSON.parse(process.env.ISSUE_LABEL);
 async function checkRateLimit() {
     const { data } = await octokit.rateLimit.get();
     console.log(
-        `API Limit: ${data.resources.core.remaining}/5000, Reset time:`,
-        new Date(data.resources.core.reset * 1000)
+        `API Limit:${data.resources.core.remaining}/5000, Used:${5000-data.resources.core.remaining}, Reset Time:${new Date(data.resources.core.reset * 1000)}`, 
     ); // This will log the core limit status
 }
 
@@ -43,8 +43,12 @@ async function checkRateLimit() {
 async function main() {
     try {
         await checkRateLimit();
-        const { originalFilesArray, translatedFilesArray } = await getFilesArray();
-        const commonFiles = getCommonFiles( originalFilesArray,translatedFilesArray);
+        const { originalFilesArray, translatedFilesArray } =
+            await getFilesArray();
+        const commonFiles = getCommonFiles(
+            originalFilesArray,
+            translatedFilesArray
+        );
 
         console.log(`Found ${commonFiles.length} common markdown files.`);
 
@@ -52,6 +56,9 @@ async function main() {
             console.log("No common markdown files found.");
             return;
         }
+        // for performance reasons, fetch all open and closed issues with comments in the translated repository at once
+        await fetchAllOpenIssues(); 
+        await fetchAllClosedIssuesWithComments(); 
 
         // Process each common file to check if there are new commits in the original repository
         await processCommonFiles(commonFiles);
@@ -111,7 +118,8 @@ async function getFilesList(owner, repo, subdirectory, branch) {
 function getCommonFiles(originalArray, translatedArray) {
     const commonFiles = originalArray.filter(
         filePath =>
-            translatedArray.includes(filePath) && filePath.endsWith(".md") &&
+            translatedArray.includes(filePath) &&
+            filePath.endsWith(".md") &&
             !filesToIgnore.includes(filePath.toLowerCase())
     );
 
@@ -191,36 +199,53 @@ async function getLastCommitDate(owner, repo, path) {
     }
     return date;
 }
-
-// Function to check if a commit is already resolved in a closed issue
-async function isCommitInClosedIssues(commit, filePath) {
-    const { data: closedIssues } = await octokit.issues.listForRepo({
+// Define a global variable to store the list of closed issues with comments
+let closedIssuesWithComments = [];
+// function to fetch all closed issues and their comments in the translated repository
+async function fetchAllClosedIssuesWithComments() {
+    const closedIssues = await octokit.paginate(octokit.issues.listForRepo, {
         owner: translatedOwner,
         repo: translatedRepo,
         state: "closed",
         creator: "filgoBot",
+        per_page: 100, // 100 is the maximum number of items that can be returned per page
     });
 
-    const checkIssues = closedIssues.map(async issue => {
-        const { data: comments } = await octokit.issues.listComments({
-            owner: translatedOwner,
-            repo: translatedRepo,
-            issue_number: issue.number,
-        });
+    closedIssuesWithComments = await Promise.all(
+        closedIssues.map(async issue => {
+            const comments = await octokit.paginate(
+                octokit.issues.listComments,
+                {
+                    owner: translatedOwner,
+                    repo: translatedRepo,
+                    issue_number: issue.number,
+                }
+            );
 
-        const texts = [issue.body, ...comments.map(comment => comment.body)];
-        const commitIdentifier = `${commit.sha}:${filePath}`;
+            return {
+                ...issue,
+                comments,
+            };
+        })
+    );
+}
+// Function to check if a commit is already resolved in a closed issue
+async function isCommitInClosedIssues(commit, filePath) {
+    const commitIdentifier = `${commit.sha}:${filePath}`;
+
+    for (const issue of closedIssuesWithComments) {
+        const texts = [
+            issue.body,
+            ...issue.comments.map(comment => comment.body),
+        ];
         if (texts.some(text => text.includes(commitIdentifier))) {
             console.log(
                 `----Commit is already resolved for ${filePath} in closed issue ${issue.number}`
             );
             return true;
         }
-        return false;
-    });
-
-    const results = await Promise.all(checkIssues);
-    return results.some(result => result === true);
+    }
+    return false;
 }
 
 // Function to create a GitHub issue for a translation update
@@ -273,34 +298,58 @@ async function createIssue(
     }
 }
 
-// Function to get an existing issue for a file in translated repository
-async function getExistingIssue(filePath) {
-    const { data: issues } = await octokit.issues.listForRepo({
-        owner: translatedOwner,
-        repo: translatedRepo,
-        state: "open",
-        creator: "filgoBot",
-    });
+// Define a global variable to store the list of open issues
+let openIssues = [];
 
-    // Find an issue with the same title as the file
-    return issues.find(issue => issue.body.includes(filePath));
+// Function to fetch all open issues and their comments in the translated repository
+async function fetchAllOpenIssues() {
+    try {
+        const issues = await octokit.paginate(octokit.issues.listForRepo, {
+            owner: translatedOwner,
+            repo: translatedRepo,
+            state: "open",
+            creator: "filgoBot",
+            per_page: 100,
+        });
+
+        openIssues = await Promise.all(
+            issues.map(async issue => {
+                const comments = await octokit.paginate(
+                    octokit.issues.listComments,
+                    {
+                        owner: translatedOwner,
+                        repo: translatedRepo,
+                        issue_number: issue.number,
+                    }
+                );
+
+                return {
+                    ...issue,
+                    comments,
+                };
+            })
+        );
+    } catch (error) {
+        console.error(`Failed to fetch issues: ${error}`);
+    }
+}
+// Function to get an existing issue for a filePath
+async function getExistingIssue(filePath) {
+    const existingIssue = openIssues.find(issue =>
+        issue.body.includes(filePath)
+    );
+
+    return existingIssue;
 }
 
 // Function to filter out the commits that were already commented on
 async function filterNewCommits(existingIssue, newCommits, filePath) {
-    const { data: comments } = await octokit.issues.listComments({
-        owner: translatedOwner,
-        repo: translatedRepo,
-        issue_number: existingIssue.number,
-        creator: "filgoBot",
-    });
-
     // Filter out the commits that were already commented on
     return newCommits.filter(
         commit =>
             ![
                 existingIssue.body,
-                ...comments.map(comment => comment.body),
+                ...existingIssue.comments.map(comment => comment.body),
             ].some(text => text.includes(`${commit.sha}:${filePath}`))
     );
 }
@@ -350,7 +399,7 @@ async function getCommitMessages(newCommits, path, filePath) {
                 // Get the additions and deletions for the file in the commit by passing commit data and path
                 const diff = getCommitDiff(data, path);
 
-                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- SHA: ${data.sha}:${filePath} -->`;
+                return `- [${firstLineMessage}](${commitUrl}) (additions: ${diff.additions}, deletions: ${diff.deletions}) on ${formattedDate} <!-- commitIdentifier: ${data.sha}:${filePath} -->`;
             })
             .join("\n");
     } catch (error) {
@@ -361,6 +410,7 @@ async function getCommitMessages(newCommits, path, filePath) {
 function getCommitDiff(commit, path) {
     // Find the file in the commit that matches the path
     const file = commit.files.find(file => file.filename === path);
+
     // Return the additions and deletions for the specific file not the entire commit
     return {
         additions: file.additions,
