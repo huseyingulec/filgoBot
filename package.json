@@ -16,6 +16,7 @@
     "license": "MIT",
     "dependencies": {
         "@octokit/rest": "^20.0.2",
-        "deers": "^0.2.2"
+        "deers": "^0.2.2",
+        "dotenv": "^16.4.2"
     }
 }
