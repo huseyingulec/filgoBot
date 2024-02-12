@@ -19,7 +19,7 @@ jobs:
               env:
                   ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} # Pass the GitHub token to your script
 
-                  IGNORE_FILES: "readme.md,license.md,PULL_REQUEST_TEMPLATE.md" # List of files to ignore
+                  IGNORE_FILES: "readme.md,license.md,.github/PULL_REQUEST_TEMPLATE.md" # List of files to ignore
 
                   TRANSLATED_OWNER: "kamp-us" # Owner of the translated repository
                   TRANSLATED_REPO: "monorepo" # Name of the translated repository
