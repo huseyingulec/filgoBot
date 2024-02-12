@@ -201,6 +201,7 @@ async function getLastCommitDate(owner, repo, path) {
 }
 // Define a global variable to store the list of closed issues with comments
 let closedIssuesWithComments = [];
+
 // function to fetch all closed issues and their comments in the translated repository
 async function fetchAllClosedIssuesWithComments() {
     const closedIssues = await octokit.paginate(octokit.issues.listForRepo, {
@@ -228,22 +229,23 @@ async function fetchAllClosedIssuesWithComments() {
             };
         })
     );
+    console.log(`Total number of closed issues:${closedIssuesWithComments.length}`);
 }
 // Function to check if a commit is already resolved in a closed issue
 async function isCommitInClosedIssues(commit, filePath) {
     const commitIdentifier = `${commit.sha}:${filePath}`;
-
+    // Check if the commit identifier is present in the body or comments of any closed issue
     for (const issue of closedIssuesWithComments) {
         const texts = [
             issue.body,
             ...issue.comments.map(comment => comment.body),
         ];
-        if (texts.some(text => text.includes(commitIdentifier))) {
-            console.log(
-                `----Commit is already resolved for ${filePath} in closed issue ${issue.number}`
-            );
+        // If the commit identifier is found in the body or comments of the issue, return true
+        if (texts.some(text => text && text.includes(commitIdentifier))) {
+            // console.log(`---Commit is already resolved for ${filePath} in closed issue #${issue.number}`);
             return true;
         }
+        // If the commit identifier is not found in the body or comments of the issue, return false
     }
     return false;
 }
@@ -262,7 +264,7 @@ async function createIssue(
 
         const existingIssue = await getExistingIssue(filePath);
         if (existingIssue) {
-            console.log(`--Issue already exists for file ${filePath}`);
+            console.log(`--Issue already exists`);
             const newCommitsToComment = await filterNewCommits(
                 existingIssue,
                 newCommits,
@@ -270,7 +272,7 @@ async function createIssue(
             );
 
             if (newCommitsToComment.length === 0) {
-                console.log(`---No new commits to comment for ${filePath}`);
+                console.log(`---No new commits to comment`);
                 return;
             }
 
@@ -279,7 +281,7 @@ async function createIssue(
                 originalFilePath,
                 filePath
             );
-            await addCommentToIssue(existingIssue, commitMessages, fileName);
+            await addCommentToIssue(existingIssue, commitMessages);
         } else {
             const commitMessages = await getCommitMessages(
                 newCommits,
@@ -332,10 +334,11 @@ async function fetchAllOpenIssues() {
     } catch (error) {
         console.error(`Failed to fetch issues: ${error}`);
     }
+    console.log(`Total number of open issues:${openIssues.length}`);
 }
 // Function to get an existing issue for a filePath
 async function getExistingIssue(filePath) {
-    const existingIssue = openIssues.find(issue =>
+    const existingIssue = openIssues.find(issue => issue.body &&
         issue.body.includes(filePath)
     );
 
@@ -350,7 +353,7 @@ async function filterNewCommits(existingIssue, newCommits, filePath) {
             ![
                 existingIssue.body,
                 ...existingIssue.comments.map(comment => comment.body),
-            ].some(text => text.includes(`${commit.sha}:${filePath}`))
+            ].some(text => text && text.includes(`${commit.sha}:${filePath}`))
     );
 }
 // Define options for date formatting
@@ -419,7 +422,7 @@ function getCommitDiff(commit, path) {
 }
 
 // Function to add a comment to an existing issue
-async function addCommentToIssue(existingIssue, commitMessages, file) {
+async function addCommentToIssue(existingIssue, commitMessages) {
     try {
         await octokit.issues.createComment({
             owner: translatedOwner,
@@ -428,7 +431,7 @@ async function addCommentToIssue(existingIssue, commitMessages, file) {
             body: `New commits have been made to the Odin's file. Please update the Kampus' file.\n\n Latest commits:\n${commitMessages}`,
         });
 
-        console.log(`---✅Comment added to issue for ${file}`);
+        console.log(`---✅Comment added to the existing issue`);
     } catch (error) {
         console.error(`---❌Error adding comment to issue: ${error.message}`);
     }
@@ -450,7 +453,7 @@ async function createNewIssue(
             labels: issueLabel,
         });
 
-        console.log(`--✅Issue created successfully for ${file}`);
+        console.log(`--✅Issue created successfully`);
     } catch (error) {
         console.error(`--❌Error creating new issue: ${error.message}`);
     }
