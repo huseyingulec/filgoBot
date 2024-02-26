@@ -57,8 +57,7 @@ async function main() {
             return;
         }
         // for performance reasons, fetch all open and closed issues with comments in the translated repository at once
-        await fetchAllOpenIssues(); 
-        await fetchAllClosedIssuesWithComments(); 
+        await fetchAllIssuesWithComments(); 
 
         // Process each common file to check if there are new commits in the original repository
         await processCommonFiles(commonFiles);
@@ -150,15 +149,16 @@ async function processCommonFiles(commonFiles) {
                 new Date(commit.commit.committer.date) >
                 new Date(translatedFileLastCommitDate)
         );
+    
         // Filter out the commits that are already resolved in a closed issue
         let newCommits = [];
         for (const commit of commits) {
-            const isInClosedIssues = await isCommitInClosedIssues(
+            const isInIssues = await isCommitInIssues(
                 commit,
                 filePath
             );
-            if (!isInClosedIssues) {
-                newCommits.push(commit);
+            if (!isInIssues) {
+                newCommits.unshift(commit);
             }
         }
 
@@ -199,11 +199,19 @@ async function getLastCommitDate(owner, repo, path) {
     }
     return date;
 }
-// Define a global variable to store the list of closed issues with comments
-let closedIssuesWithComments = [];
+// Define a global variable to store the list of issues with comments
+let issuesWithComments = [];
 
-// function to fetch all closed issues and their comments in the translated repository
-async function fetchAllClosedIssuesWithComments() {
+// function to fetch all issues (both open and closed) and their comments in the translated repository
+async function fetchAllIssuesWithComments() {
+    const openIssues = await octokit.paginate(octokit.issues.listForRepo, {
+        owner: translatedOwner,
+        repo: translatedRepo,
+        state: "open",
+        creator: "filgoBot",
+        per_page: 100, // 100 is the maximum number of items that can be returned per page
+    });
+
     const closedIssues = await octokit.paginate(octokit.issues.listForRepo, {
         owner: translatedOwner,
         repo: translatedRepo,
@@ -212,8 +220,10 @@ async function fetchAllClosedIssuesWithComments() {
         per_page: 100, // 100 is the maximum number of items that can be returned per page
     });
 
-    closedIssuesWithComments = await Promise.all(
-        closedIssues.map(async issue => {
+    const allIssues = openIssues.concat(closedIssues);
+
+    issuesWithComments = await Promise.all(
+        allIssues.map(async issue => {
             const comments = await octokit.paginate(
                 octokit.issues.listComments,
                 {
@@ -229,13 +239,14 @@ async function fetchAllClosedIssuesWithComments() {
             };
         })
     );
-    console.log(`Total number of closed issues:${closedIssuesWithComments.length}`);
+    console.log(`Total number of issues:${issuesWithComments.length}`);
 }
+
 // Function to check if a commit is already resolved in a closed issue
-async function isCommitInClosedIssues(commit, filePath) {
+async function isCommitInIssues(commit, filePath) {
     const commitIdentifier = `${commit.sha}:${filePath}`;
     // Check if the commit identifier is present in the body or comments of any closed issue
-    for (const issue of closedIssuesWithComments) {
+    for (const issue of issuesWithComments) {
         const texts = [
             issue.body,
             ...issue.comments.map(comment => comment.body),
@@ -264,25 +275,16 @@ async function createIssue(
 
         const existingIssue = await getExistingIssue(filePath);
         if (existingIssue) {
-            console.log(`--Issue already exists`);
-            const newCommitsToComment = await filterNewCommits(
-                existingIssue,
-                newCommits,
-                filePath
-            );
-
-            if (newCommitsToComment.length === 0) {
-                console.log(`---No new commits to comment`);
-                return;
-            }
-
             const commitMessages = await getCommitMessages(
-                newCommitsToComment,
+                newCommits,
                 originalFilePath,
                 filePath
             );
             await addCommentToIssue(existingIssue, commitMessages);
+
         } else {
+
+            // if there is no existing issue, create a new one
             const commitMessages = await getCommitMessages(
                 newCommits,
                 originalFilePath,
@@ -300,62 +302,27 @@ async function createIssue(
     }
 }
 
-// Define a global variable to store the list of open issues
-let openIssues = [];
+// function to get an existing issue for a file
+async function getExistingIssue(filePath) {
+    // Search in issuesWithComments
+    let existingIssue = issuesWithComments.find(issue => issue.body && issue.body.includes(filePath));
 
-// Function to fetch all open issues and their comments in the translated repository
-async function fetchAllOpenIssues() {
-    try {
-        const issues = await octokit.paginate(octokit.issues.listForRepo, {
+    // If an issue was found and it's closed, reopen it
+    if (existingIssue && existingIssue.state === 'closed') {
+        await octokit.issues.update({
             owner: translatedOwner,
             repo: translatedRepo,
-            state: "open",
-            creator: "filgoBot",
-            per_page: 100,
+            issue_number: existingIssue.number,
+            state: 'open'
         });
 
-        openIssues = await Promise.all(
-            issues.map(async issue => {
-                const comments = await octokit.paginate(
-                    octokit.issues.listComments,
-                    {
-                        owner: translatedOwner,
-                        repo: translatedRepo,
-                        issue_number: issue.number,
-                    }
-                );
-
-                return {
-                    ...issue,
-                    comments,
-                };
-            })
-        );
-    } catch (error) {
-        console.error(`Failed to fetch issues: ${error}`);
+        // Update the state of the issue in issuesWithComments
+        existingIssue.state = 'open';
     }
-    console.log(`Total number of open issues:${openIssues.length}`);
-}
-// Function to get an existing issue for a filePath
-async function getExistingIssue(filePath) {
-    const existingIssue = openIssues.find(issue => issue.body &&
-        issue.body.includes(filePath)
-    );
 
-    return existingIssue;
+    return existingIssue || null;
 }
 
-// Function to filter out the commits that were already commented on
-async function filterNewCommits(existingIssue, newCommits, filePath) {
-    // Filter out the commits that were already commented on
-    return newCommits.filter(
-        commit =>
-            ![
-                existingIssue.body,
-                ...existingIssue.comments.map(comment => comment.body),
-            ].some(text => text && text.includes(`${commit.sha}:${filePath}`))
-    );
-}
 // Define options for date formatting
 const DATE_OPTIONS = {
     month: "short",
