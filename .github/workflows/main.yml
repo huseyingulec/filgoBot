@@ -1,7 +1,8 @@
 name: Run bot
 on:
-    schedule:
-        - cron: "0 18 * * *" # This will run the workflow at 18:00 (6:00 PM UTC) daily
+    # schedule:
+    #     - cron: "0 18 * * *" # This will run the workflow at 18:00 (6:00 PM UTC) daily
+        
     workflow_dispatch:
 jobs:
     build:
